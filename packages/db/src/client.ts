@@ -1,6 +1,14 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
+import { config } from "dotenv";
 import postgres from "postgres";
 import * as schema from "./schema";
+
+const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
+const rootEnvPath = path.resolve(currentDirectory, "../../../.env");
+
+config({ path: rootEnvPath });
 
 let database: PostgresJsDatabase<typeof schema> | null = null;
 
@@ -24,4 +32,3 @@ export function getDatabaseClient() {
 
   return database;
 }
-

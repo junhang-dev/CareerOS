@@ -1,4 +1,12 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { config } from "dotenv";
 import { defineConfig } from "drizzle-kit";
+
+const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
+const rootEnvPath = path.resolve(currentDirectory, "../../.env");
+
+config({ path: rootEnvPath });
 
 const connectionString = process.env.DATABASE_URL ?? "";
 
@@ -14,4 +22,3 @@ export default defineConfig({
     url: connectionString
   }
 });
-
