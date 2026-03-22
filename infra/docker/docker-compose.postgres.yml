@@ -1,0 +1,17 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: careeros-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: careeros
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - careeros-postgres-data:/var/lib/postgresql/data
+
+volumes:
+  careeros-postgres-data:
+

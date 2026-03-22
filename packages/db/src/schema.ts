@@ -25,6 +25,12 @@ export const applicationStatusEnum = pgEnum("application_status", [
   "rejected",
   "archived"
 ]);
+export const applicationDocumentStatusEnum = pgEnum("application_document_status", [
+  "draft",
+  "reviewed",
+  "approved",
+  "superseded"
+]);
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -139,6 +145,35 @@ export const careerProfiles = pgTable("career_profiles", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
 });
 
+export const careerExperiences = pgTable("career_experiences", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  careerProfileId: uuid("career_profile_id")
+    .notNull()
+    .references(() => careerProfiles.id, { onDelete: "cascade" }),
+  company: text("company").notNull(),
+  role: text("role").notNull(),
+  startDate: timestamp("start_date", { mode: "date" }).notNull(),
+  endDate: timestamp("end_date", { mode: "date" }),
+  description: text("description"),
+  achievementsJson: jsonb("achievements_json").notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+
+export const careerProjects = pgTable("career_projects", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  careerProfileId: uuid("career_profile_id")
+    .notNull()
+    .references(() => careerProfiles.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  role: text("role"),
+  description: text("description"),
+  outcomesJson: jsonb("outcomes_json").notNull().default([]),
+  technologiesJson: jsonb("technologies_json").notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+
 export const careerDocuments = pgTable("career_documents", {
   id: uuid("id").defaultRandom().primaryKey(),
   userId: uuid("user_id")
@@ -151,6 +186,41 @@ export const careerDocuments = pgTable("career_documents", {
   parsedText: text("parsed_text"),
   structuredJson: jsonb("structured_json").notNull().default({}),
   version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+
+export const skills = pgTable("skills", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull().unique(),
+  category: text("category"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+
+export const userSkills = pgTable("user_skills", {
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  skillId: uuid("skill_id")
+    .notNull()
+    .references(() => skills.id, { onDelete: "cascade" }),
+  proficiency: integer("proficiency"),
+  evidenceCount: integer("evidence_count").notNull().default(0),
+  lastVerifiedAt: timestamp("last_verified_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+
+export const externalAccounts = pgTable("external_accounts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  provider: text("provider").notNull(),
+  accountRef: text("account_ref").notNull(),
+  status: text("status").notNull().default("pending"),
+  metadataJson: jsonb("metadata_json").notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
 });
@@ -190,3 +260,15 @@ export const applicationPreparations = pgTable("application_preparations", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
 });
 
+export const applicationDocuments = pgTable("application_documents", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  applicationPreparationId: uuid("application_preparation_id")
+    .notNull()
+    .references(() => applicationPreparations.id, { onDelete: "cascade" }),
+  docType: text("doc_type").notNull(),
+  content: text("content").notNull(),
+  version: integer("version").notNull().default(1),
+  status: applicationDocumentStatusEnum("status").notNull().default("draft"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});

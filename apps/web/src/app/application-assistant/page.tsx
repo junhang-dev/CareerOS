@@ -1,8 +1,8 @@
 import { PageIntro } from "../../components/page-intro";
 import { listApplicationPreparations } from "../../server/services/applications";
 
-export default function ApplicationAssistantPage() {
-  const preparations = listApplicationPreparations();
+export default async function ApplicationAssistantPage() {
+  const preparations = await listApplicationPreparations();
 
   return (
     <main className="shell">
@@ -35,4 +35,3 @@ export default function ApplicationAssistantPage() {
     </main>
   );
 }
-

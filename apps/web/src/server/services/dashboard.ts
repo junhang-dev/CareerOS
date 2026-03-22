@@ -1,8 +1,8 @@
 import { getCareerOSRepository } from "../repositories";
 
-export function getDashboardSnapshot() {
+export async function getDashboardSnapshot() {
   const repository = getCareerOSRepository();
-  const snapshot = repository.getSnapshot();
+  const snapshot = await repository.getSnapshot();
 
   const recentJobPostings = snapshot.jobPostings
     .map((jobPosting) => {

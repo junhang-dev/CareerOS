@@ -77,16 +77,26 @@ export type CreateApplicationPreparationInput = {
   strategyNote?: string;
 };
 
+export type UpdateSearchProfileInput = {
+  id: string;
+  name: string;
+  scheduleRule: string;
+  priority?: number;
+  isActive: boolean;
+  filters?: Record<string, unknown>;
+};
+
 export interface CareerOSRepository {
-  getSnapshot(): RepositorySnapshot;
-  listSearchProfiles(): SearchProfileRecord[];
-  createSearchProfile(input: CreateSearchProfileInput): SearchProfileRecord;
-  listJobPostings(): JobPostingListItem[];
-  getJobPostingDetail(jobPostingId: string): JobPostingDetailRecord | null;
-  getCareerAssetSnapshot(): CareerAssetSnapshot;
-  listApplicationPreparations(): ApplicationPreparationRecord[];
+  getSnapshot(): Promise<RepositorySnapshot>;
+  listSearchProfiles(): Promise<SearchProfileRecord[]>;
+  createSearchProfile(input: CreateSearchProfileInput): Promise<SearchProfileRecord>;
+  updateSearchProfile(input: UpdateSearchProfileInput): Promise<SearchProfileRecord | null>;
+  deleteSearchProfile(searchProfileId: string): Promise<void>;
+  listJobPostings(): Promise<JobPostingListItem[]>;
+  getJobPostingDetail(jobPostingId: string): Promise<JobPostingDetailRecord | null>;
+  getCareerAssetSnapshot(): Promise<CareerAssetSnapshot>;
+  listApplicationPreparations(): Promise<ApplicationPreparationRecord[]>;
   createApplicationPreparation(
     input: CreateApplicationPreparationInput
-  ): ApplicationPreparationRecord | ApplicationPreparation;
+  ): Promise<ApplicationPreparationRecord | ApplicationPreparation>;
 }
-

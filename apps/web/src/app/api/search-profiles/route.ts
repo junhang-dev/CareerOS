@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { createSearchProfile, listSearchProfiles } from "../../../server/services/search-profiles";
 
-export function GET() {
+export async function GET() {
   return NextResponse.json({
-    items: listSearchProfiles()
+    items: await listSearchProfiles()
   });
 }
 
@@ -26,6 +26,13 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json(createSearchProfile(body), { status: 201 });
+  return NextResponse.json(
+    await createSearchProfile({
+      name: body.name,
+      scheduleRule: body.scheduleRule,
+      priority: body.priority,
+      filters: body.filters
+    }),
+    { status: 201 }
+  );
 }
-

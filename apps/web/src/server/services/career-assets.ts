@@ -1,5 +1,5 @@
 import { getCareerOSRepository } from "../repositories";
 
-export function getCareerAssetSnapshot() {
-  return getCareerOSRepository().getCareerAssetSnapshot();
+export async function getCareerAssetSnapshot() {
+  return await getCareerOSRepository().getCareerAssetSnapshot();
 }

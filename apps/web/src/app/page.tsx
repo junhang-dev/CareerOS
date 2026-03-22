@@ -2,8 +2,8 @@ import Link from "next/link";
 import { moduleOverview, nextMilestones, recommendedPaths } from "../lib/module-overview";
 import { getDashboardSnapshot } from "../server/services/dashboard";
 
-export default function HomePage() {
-  const snapshot = getDashboardSnapshot();
+export default async function HomePage() {
+  const snapshot = await getDashboardSnapshot();
 
   return (
     <main className="shell">

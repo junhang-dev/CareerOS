@@ -1,8 +1,8 @@
 import { PageIntro } from "../../components/page-intro";
 import { getCareerAssetSnapshot } from "../../server/services/career-assets";
 
-export default function CareerAssetsPage() {
-  const snapshot = getCareerAssetSnapshot();
+export default async function CareerAssetsPage() {
+  const snapshot = await getCareerAssetSnapshot();
 
   return (
     <main className="shell">
@@ -77,4 +77,3 @@ export default function CareerAssetsPage() {
     </main>
   );
 }
-

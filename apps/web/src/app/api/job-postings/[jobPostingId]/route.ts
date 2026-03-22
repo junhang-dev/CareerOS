@@ -9,7 +9,7 @@ type RouteContext = {
 
 export async function GET(_: Request, context: RouteContext) {
   const params = await context.params;
-  const detail = getJobPostingDetail(params.jobPostingId);
+  const detail = await getJobPostingDetail(params.jobPostingId);
 
   if (!detail) {
     return NextResponse.json(
@@ -24,4 +24,3 @@ export async function GET(_: Request, context: RouteContext) {
 
   return NextResponse.json(detail);
 }
-

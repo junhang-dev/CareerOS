@@ -246,6 +246,73 @@ pre {
   font-size: 0.95rem;
 }
 
+.stack-form {
+  display: grid;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.field-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+  color: var(--ink-muted);
+  font-size: 0.94rem;
+}
+
+.field--full {
+  grid-column: 1 / -1;
+}
+
+.field--checkbox {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 252, 246, 0.96);
+  padding: 12px 14px;
+  color: var(--ink);
+  font: inherit;
+}
+
+.form-actions,
+.inline-form {
+  display: flex;
+  gap: 10px;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: white;
+  font: inherit;
+  cursor: pointer;
+}
+
+.button--ghost {
+  background: transparent;
+  border-color: var(--line);
+  color: var(--ink-muted);
+}
+
 .code-block {
   overflow: auto;
   margin-top: 12px;
@@ -289,6 +356,10 @@ pre {
   .site-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .field-grid {
+    grid-template-columns: 1fr;
   }
 
   .hero__grid {

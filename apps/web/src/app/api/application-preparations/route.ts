@@ -4,9 +4,9 @@ import {
   listApplicationPreparations
 } from "../../../server/services/applications";
 
-export function GET() {
+export async function GET() {
   return NextResponse.json({
-    items: listApplicationPreparations()
+    items: await listApplicationPreparations()
   });
 }
 
@@ -27,6 +27,11 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json(createApplicationPreparation(body), { status: 201 });
+  return NextResponse.json(
+    await createApplicationPreparation({
+      jobPostingId: body.jobPostingId,
+      strategyNote: body.strategyNote
+    }),
+    { status: 201 }
+  );
 }
-

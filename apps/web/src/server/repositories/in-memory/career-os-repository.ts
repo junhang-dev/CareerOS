@@ -9,11 +9,12 @@ import type {
   JobPostingDetailRecord,
   JobPostingListItem,
   RepositorySnapshot,
-  SearchProfileRecord
+  SearchProfileRecord,
+  UpdateSearchProfileInput
 } from "../types";
 
 export class InMemoryCareerOSRepository implements CareerOSRepository {
-  getSnapshot(): RepositorySnapshot {
+  async getSnapshot(): Promise<RepositorySnapshot> {
     const db = cloneMockDatabase();
 
     return {
@@ -30,11 +31,11 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
     };
   }
 
-  listSearchProfiles(): SearchProfileRecord[] {
+  async listSearchProfiles(): Promise<SearchProfileRecord[]> {
     return cloneMockDatabase().searchProfiles.sort((left, right) => left.priority - right.priority);
   }
 
-  createSearchProfile(input: CreateSearchProfileInput): SearchProfileRecord {
+  async createSearchProfile(input: CreateSearchProfileInput): Promise<SearchProfileRecord> {
     const db = getMockDatabase();
 
     const searchProfile = {
@@ -53,7 +54,30 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
     return searchProfile;
   }
 
-  listJobPostings(): JobPostingListItem[] {
+  async updateSearchProfile(input: UpdateSearchProfileInput): Promise<SearchProfileRecord | null> {
+    const db = getMockDatabase();
+    const current = db.searchProfiles.find((item) => item.id === input.id);
+
+    if (!current) {
+      return null;
+    }
+
+    current.name = input.name;
+    current.scheduleRule = input.scheduleRule;
+    current.priority = input.priority ?? current.priority;
+    current.isActive = input.isActive;
+    current.filters = input.filters ?? current.filters;
+    current.updatedAt = new Date().toISOString();
+
+    return current;
+  }
+
+  async deleteSearchProfile(searchProfileId: string): Promise<void> {
+    const db = getMockDatabase();
+    db.searchProfiles = db.searchProfiles.filter((item) => item.id !== searchProfileId);
+  }
+
+  async listJobPostings(): Promise<JobPostingListItem[]> {
     const db = cloneMockDatabase();
 
     return db.jobPostings.map((jobPosting) => {
@@ -70,7 +94,7 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
     });
   }
 
-  getJobPostingDetail(jobPostingId: string): JobPostingDetailRecord | null {
+  async getJobPostingDetail(jobPostingId: string): Promise<JobPostingDetailRecord | null> {
     const db = cloneMockDatabase();
     const jobPosting = db.jobPostings.find((item) => item.id === jobPostingId);
 
@@ -88,7 +112,7 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
     };
   }
 
-  getCareerAssetSnapshot(): CareerAssetSnapshot {
+  async getCareerAssetSnapshot(): Promise<CareerAssetSnapshot> {
     const db = cloneMockDatabase();
 
     return {
@@ -105,7 +129,7 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
     };
   }
 
-  listApplicationPreparations(): ApplicationPreparationRecord[] {
+  async listApplicationPreparations(): Promise<ApplicationPreparationRecord[]> {
     const db = cloneMockDatabase();
 
     return db.applicationPreparations.map((preparation) => ({
@@ -117,9 +141,9 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
     }));
   }
 
-  createApplicationPreparation(
+  async createApplicationPreparation(
     input: CreateApplicationPreparationInput
-  ): ApplicationPreparationRecord | ApplicationPreparation {
+  ): Promise<ApplicationPreparationRecord | ApplicationPreparation> {
     const db = getMockDatabase();
 
     const existing = db.applicationPreparations.find(
@@ -147,4 +171,3 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
     return preparation;
   }
 }
-

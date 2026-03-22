@@ -9,7 +9,11 @@
   ],
   "scripts": {
     "check": "node ./scripts/validate-structure.mjs",
-    "dev:web": "npm run dev --workspace @careeros/web"
+    "dev:web": "npm run dev --workspace @careeros/web",
+    "db:up": "docker compose -f infra/docker/docker-compose.postgres.yml up -d",
+    "db:down": "docker compose -f infra/docker/docker-compose.postgres.yml down",
+    "db:generate": "npm run generate --workspace @careeros/db",
+    "db:push": "npm run push --workspace @careeros/db"
   },
   "engines": {
     "node": ">=20.0.0"

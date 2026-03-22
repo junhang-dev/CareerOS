@@ -3,8 +3,8 @@ import { PageIntro } from "../../components/page-intro";
 import { formatDate } from "../../lib/format";
 import { listJobPostings } from "../../server/services/job-postings";
 
-export default function JobPostingsPage() {
-  const jobPostings = listJobPostings();
+export default async function JobPostingsPage() {
+  const jobPostings = await listJobPostings();
 
   return (
     <main className="shell">
@@ -38,4 +38,3 @@ export default function JobPostingsPage() {
     </main>
   );
 }
-

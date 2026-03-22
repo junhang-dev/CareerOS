@@ -52,7 +52,25 @@ npm run dev:web
 CAREEROS_DATA_DRIVER=memory npm run dev:web
 ```
 
-`postgres` 드라이버는 저장소 인터페이스와 DB 패키지 뼈대만 추가된 상태이며, 실제 query 구현은 다음 단계에서 연결한다.
+`postgres` 드라이버는 기본 싱글유저 컨텍스트 생성, 대시보드/조회용 read path, `search profile`의 첫 CRUD까지 연결된 상태다.
+
+## PostgreSQL 실행
+
+PostgreSQL은 로컬에 직접 설치할 필요는 없다. 아래 둘 중 하나면 충분하다.
+
+- Docker로 띄운 로컬 PostgreSQL
+- 이미 준비된 원격 PostgreSQL
+
+Docker를 쓸 경우:
+
+```bash
+cp .env.example .env
+npm run db:up
+CAREEROS_DATA_DRIVER=postgres npm run db:push
+CAREEROS_DATA_DRIVER=postgres npm run dev:web
+```
+
+기본 연결 정보는 `.env.example`에 들어 있다.
 
 ## 설계 원칙
 

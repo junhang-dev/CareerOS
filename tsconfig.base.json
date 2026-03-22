@@ -10,7 +10,10 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "paths": {
+      "@careeros/domain": ["packages/domain/src/index.ts"],
       "@careeros/domain/*": ["packages/domain/src/*"],
+      "@careeros/db": ["packages/db/src/index.ts"],
+      "@careeros/db/*": ["packages/db/src/*"],
       "@careeros/integrations/*": ["packages/integrations/src/*"],
       "@careeros/security/*": ["packages/security/src/*"],
       "@careeros/workers/*": ["packages/workers/src/*"],
@@ -18,4 +21,3 @@
     }
   }
 }
-

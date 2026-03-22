@@ -4,8 +4,7 @@ const nextConfig: NextConfig = {
   experimental: {
     externalDir: true
   },
-  transpilePackages: ["@careeros/domain"]
+  transpilePackages: ["@careeros/domain", "@careeros/db"]
 };
 
 export default nextConfig;
-

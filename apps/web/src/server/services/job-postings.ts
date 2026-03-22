@@ -1,9 +1,9 @@
 import { getCareerOSRepository } from "../repositories";
 
-export function listJobPostings() {
-  return getCareerOSRepository().listJobPostings();
+export async function listJobPostings() {
+  return await getCareerOSRepository().listJobPostings();
 }
 
-export function getJobPostingDetail(jobPostingId: string) {
-  return getCareerOSRepository().getJobPostingDetail(jobPostingId);
+export async function getJobPostingDetail(jobPostingId: string) {
+  return await getCareerOSRepository().getJobPostingDetail(jobPostingId);
 }

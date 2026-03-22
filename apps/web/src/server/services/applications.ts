@@ -5,10 +5,10 @@ type CreateApplicationPreparationInput = {
   strategyNote?: string;
 };
 
-export function listApplicationPreparations() {
-  return getCareerOSRepository().listApplicationPreparations();
+export async function listApplicationPreparations() {
+  return await getCareerOSRepository().listApplicationPreparations();
 }
 
-export function createApplicationPreparation(input: CreateApplicationPreparationInput) {
-  return getCareerOSRepository().createApplicationPreparation(input);
+export async function createApplicationPreparation(input: CreateApplicationPreparationInput) {
+  return await getCareerOSRepository().createApplicationPreparation(input);
 }

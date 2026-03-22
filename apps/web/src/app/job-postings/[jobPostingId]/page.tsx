@@ -11,7 +11,7 @@ type JobPostingDetailPageProps = {
 
 export default async function JobPostingDetailPage({ params }: JobPostingDetailPageProps) {
   const { jobPostingId } = await params;
-  const detail = getJobPostingDetail(jobPostingId);
+  const detail = await getJobPostingDetail(jobPostingId);
 
   if (!detail) {
     notFound();
@@ -74,4 +74,3 @@ export default async function JobPostingDetailPage({ params }: JobPostingDetailP
     </main>
   );
 }
-
