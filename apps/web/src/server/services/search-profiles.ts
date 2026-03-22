@@ -1,4 +1,4 @@
-import { getMockDatabase, cloneMockDatabase } from "../data/mock-state";
+import { getCareerOSRepository } from "../repositories";
 
 type CreateSearchProfileInput = {
   name: string;
@@ -8,25 +8,9 @@ type CreateSearchProfileInput = {
 };
 
 export function listSearchProfiles() {
-  return cloneMockDatabase().searchProfiles.sort((left, right) => left.priority - right.priority);
+  return getCareerOSRepository().listSearchProfiles();
 }
 
 export function createSearchProfile(input: CreateSearchProfileInput) {
-  const db = getMockDatabase();
-
-  const searchProfile = {
-    id: crypto.randomUUID(),
-    userId: db.user.id,
-    name: input.name,
-    isActive: true,
-    scheduleRule: input.scheduleRule,
-    priority: input.priority ?? 100,
-    filters: input.filters ?? {},
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
-
-  db.searchProfiles.push(searchProfile);
-  return searchProfile;
+  return getCareerOSRepository().createSearchProfile(input);
 }
-

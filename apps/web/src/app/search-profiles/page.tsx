@@ -1,4 +1,5 @@
 import { PageIntro } from "../../components/page-intro";
+import { formatSearchProfileFilters } from "../../lib/search-profile-filters";
 import { listSearchProfiles } from "../../server/services/search-profiles";
 
 export default function SearchProfilesPage() {
@@ -21,7 +22,20 @@ export default function SearchProfilesPage() {
                 <span className="pill">우선순위 {profile.priority}</span>
                 <span className="pill">{profile.isActive ? "활성" : "비활성"}</span>
               </div>
-              <pre className="code-block">{JSON.stringify(profile.filters, null, 2)}</pre>
+              <div className="filter-list">
+                {formatSearchProfileFilters(profile.filters as Record<string, unknown>).map((item) => (
+                  <div className="filter-group" key={`${profile.id}-${item.label}`}>
+                    <strong>{item.label}</strong>
+                    <div className="pill-row">
+                      {item.values.map((value) => (
+                        <span className="pill pill--neutral" key={`${item.label}-${value}`}>
+                          {value}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </article>
           ))}
         </div>
@@ -29,4 +43,3 @@ export default function SearchProfilesPage() {
     </main>
   );
 }
-

@@ -1,12 +1,16 @@
-import { cloneMockDatabase } from "../data/mock-state";
+import { getCareerOSRepository } from "../repositories";
 
 export function getDashboardSnapshot() {
-  const db = cloneMockDatabase();
-  const recentJobPostings = db.jobPostings
+  const repository = getCareerOSRepository();
+  const snapshot = repository.getSnapshot();
+
+  const recentJobPostings = snapshot.jobPostings
     .map((jobPosting) => {
-      const analysis = db.jobAnalyses.find((item) => item.jobPostingId === jobPosting.id);
-      const gap = db.gapAnalyses.find((item) => item.jobPostingId === jobPosting.id);
-      const preparation = db.applicationPreparations.find((item) => item.jobPostingId === jobPosting.id);
+      const analysis = snapshot.jobAnalyses.find((item) => item.jobPostingId === jobPosting.id);
+      const gap = snapshot.gapAnalyses.find((item) => item.jobPostingId === jobPosting.id);
+      const preparation = snapshot.applicationPreparations.find(
+        (item) => item.jobPostingId === jobPosting.id
+      );
 
       return {
         ...jobPosting,
@@ -19,17 +23,16 @@ export function getDashboardSnapshot() {
     .sort((left, right) => right.detectedAt.localeCompare(left.detectedAt));
 
   return {
-    user: db.user,
-    preferences: db.preferences,
-    searchProfiles: db.searchProfiles,
-    careerProfile: db.careerProfile,
+    user: snapshot.user,
+    preferences: snapshot.preferences,
+    searchProfiles: snapshot.searchProfiles,
+    careerProfile: snapshot.careerProfile,
     recentJobPostings,
     metrics: {
-      searchProfileCount: db.searchProfiles.length,
-      activeJobPostingCount: db.jobPostings.filter((item) => item.status === "active").length,
-      careerDocumentCount: db.careerDocuments.length,
-      applicationPreparationCount: db.applicationPreparations.length
+      searchProfileCount: snapshot.searchProfiles.length,
+      activeJobPostingCount: snapshot.jobPostings.filter((item) => item.status === "active").length,
+      careerDocumentCount: snapshot.careerDocuments.length,
+      applicationPreparationCount: snapshot.applicationPreparations.length
     }
   };
 }
-

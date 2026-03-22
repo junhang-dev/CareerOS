@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1 --port 3000",
     "build": "next build",
     "start": "next start"
   },
@@ -14,6 +14,8 @@
   },
   "devDependencies": {
     "@types/node": "25.5.0",
-    "@types/react": "19.2.14"
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "typescript": "^5.9.3"
   }
 }

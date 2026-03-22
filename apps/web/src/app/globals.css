@@ -231,6 +231,21 @@ pre {
   color: var(--ink-muted);
 }
 
+.filter-list {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.filter-group {
+  display: grid;
+  gap: 8px;
+}
+
+.filter-group strong {
+  font-size: 0.95rem;
+}
+
 .code-block {
   overflow: auto;
   margin-top: 12px;
@@ -255,6 +270,11 @@ pre {
   background: var(--accent-soft);
   color: var(--accent);
   font-size: 14px;
+}
+
+.pill--neutral {
+  background: rgba(22, 33, 31, 0.08);
+  color: var(--ink-muted);
 }
 
 .warning {

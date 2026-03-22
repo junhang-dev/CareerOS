@@ -43,6 +43,17 @@ npm run dev:web
 
 현재는 DB 대신 인메모리 목업 저장소를 사용한다. 화면과 API 계약을 먼저 확인한 뒤 PostgreSQL로 교체하는 순서다.
 
+## 데이터 드라이버
+
+- 기본값: `memory`
+- 후속 구현용 예약값: `postgres`
+
+```bash
+CAREEROS_DATA_DRIVER=memory npm run dev:web
+```
+
+`postgres` 드라이버는 저장소 인터페이스와 DB 패키지 뼈대만 추가된 상태이며, 실제 query 구현은 다음 단계에서 연결한다.
+
 ## 설계 원칙
 
 - 배포 단위는 단순하게, 코드 경계는 명확하게 유지한다.
