@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   applicationDocuments,
   applicationPreparations,
@@ -11,6 +12,7 @@ import {
   jobAnalyses,
   jobPostings,
   jobPostingVersions,
+  jobSources,
   searchProfiles,
   skills,
   userPreferences,
@@ -24,17 +26,20 @@ import type {
   JobPostingStructuredContent,
   JsonObject
 } from "@careeros/domain";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import type {
   ApplicationPreparationRecord,
   CareerAssetSnapshot,
   CareerOSRepository,
   CreateApplicationPreparationInput,
+  CreateJobPostingInput,
   CreateSearchProfileInput,
   JobPostingDetailRecord,
   JobPostingListItem,
   RepositorySnapshot,
   SearchProfileRecord,
+  UpdateApplicationPreparationInput,
+  UpdateJobPostingInput,
   UpdateSearchProfileInput
 } from "../types";
 import { DEFAULT_SINGLE_USER } from "./defaults";
@@ -50,6 +55,68 @@ function asRecord<T>(value: unknown): T {
 
 function asArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
+}
+
+function slugifySegment(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+function buildStructuredContent(input: {
+  summary?: string;
+  qualifications?: string[];
+  preferredQualifications?: string[];
+  techStack?: string[];
+}): JobPostingStructuredContent {
+  return {
+    ...(input.summary ? { summary: input.summary } : {}),
+    ...(input.qualifications?.length ? { qualifications: input.qualifications } : {}),
+    ...(input.preferredQualifications?.length
+      ? { preferredQualifications: input.preferredQualifications }
+      : {}),
+    ...(input.techStack?.length ? { techStack: input.techStack } : {})
+  };
+}
+
+function buildContentHash(input: {
+  summary?: string;
+  rawText?: string;
+  qualifications?: string[];
+  preferredQualifications?: string[];
+  techStack?: string[];
+}) {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        summary: input.summary ?? "",
+        rawText: input.rawText ?? "",
+        qualifications: input.qualifications ?? [],
+        preferredQualifications: input.preferredQualifications ?? [],
+        techStack: input.techStack ?? []
+      })
+    )
+    .digest("hex");
+}
+
+function normalizeOptionalId(value?: string | null) {
+  return value?.trim() ? value.trim() : undefined;
+}
+
+function normalizeStrategyNote(value?: string) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function sortVersions<T extends { capturedAt: string; createdAt: string }>(versions: T[]) {
+  return [...versions].sort(
+    (left, right) =>
+      new Date(right.capturedAt).getTime() -
+        new Date(left.capturedAt).getTime() ||
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+  );
 }
 
 export class PostgresCareerOSRepository implements CareerOSRepository {
@@ -170,15 +237,25 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
     };
   }
 
+  private mapApplicationDocument(row: typeof applicationDocuments.$inferSelect) {
+    return {
+      id: row.id,
+      applicationPreparationId: row.applicationPreparationId,
+      docType: row.docType as "resume" | "cover_letter" | "email" | "note",
+      content: row.content,
+      version: row.version,
+      status: row.status,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString()
+    };
+  }
+
   private async ensureUserContext(): Promise<UserContext> {
     const existingUsers = await this.db.select().from(users).limit(1);
     let user = existingUsers[0];
 
     if (!user) {
-      [user] = await this.db
-        .insert(users)
-        .values(DEFAULT_SINGLE_USER)
-        .returning();
+      [user] = await this.db.insert(users).values(DEFAULT_SINGLE_USER).returning();
     }
 
     await this.db
@@ -209,6 +286,82 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
     return { user, profile };
   }
 
+  private async ensureManualJobSource() {
+    const [existing] = await this.db.select().from(jobSources).where(eq(jobSources.name, "manual")).limit(1);
+
+    if (existing) {
+      return existing;
+    }
+
+    const [created] = await this.db
+      .insert(jobSources)
+      .values({
+        sourceType: "manual",
+        name: "manual",
+        baseUrl: "manual://job-postings",
+        country: "global"
+      })
+      .returning();
+
+    return created;
+  }
+
+  private async buildUniqueCanonicalKey(companyName: string, title: string, excludeId?: string) {
+    const base = [slugifySegment(companyName), slugifySegment(title)].filter(Boolean).join("-");
+    const normalizedBase = base || "manual-job-posting";
+    let candidate = normalizedBase;
+    let index = 2;
+
+    while (true) {
+      const [existing] = await this.db
+        .select({ id: jobPostings.id })
+        .from(jobPostings)
+        .where(
+          excludeId
+            ? and(eq(jobPostings.canonicalKey, candidate), ne(jobPostings.id, excludeId))
+            : eq(jobPostings.canonicalKey, candidate)
+        )
+        .limit(1);
+
+      if (!existing) {
+        return candidate;
+      }
+
+      candidate = `${normalizedBase}-${index}`;
+      index += 1;
+    }
+  }
+
+  private async loadApplicationPreparationRecords(
+    rows: Array<typeof applicationPreparations.$inferSelect>
+  ): Promise<ApplicationPreparationRecord[]> {
+    if (rows.length === 0) {
+      return [];
+    }
+
+    const jobPostingIds = rows.map((row) => row.jobPostingId);
+    const preparationIds = rows.map((row) => row.id);
+
+    const [jobPostingRows, documentRows] = await Promise.all([
+      this.db.select().from(jobPostings).where(inArray(jobPostings.id, jobPostingIds)),
+      this.db
+        .select()
+        .from(applicationDocuments)
+        .where(inArray(applicationDocuments.applicationPreparationId, preparationIds))
+    ]);
+
+    return rows.map((row) => ({
+      ...this.mapApplicationPreparation(row),
+      jobPosting:
+        jobPostingRows.find((jobPostingRow) => jobPostingRow.id === row.jobPostingId)
+          ? this.mapJobPosting(jobPostingRows.find((jobPostingRow) => jobPostingRow.id === row.jobPostingId)!)
+          : null,
+      documents: documentRows
+        .filter((documentRow) => documentRow.applicationPreparationId === row.id)
+        .map((documentRow) => this.mapApplicationDocument(documentRow))
+    }));
+  }
+
   async getSnapshot(): Promise<RepositorySnapshot> {
     const { user, profile } = await this.ensureUserContext();
 
@@ -228,8 +381,11 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
         .from(searchProfiles)
         .where(eq(searchProfiles.userId, user.id))
         .orderBy(asc(searchProfiles.priority)),
-      this.db.select().from(jobPostings),
-      this.db.select().from(jobPostingVersions),
+      this.db.select().from(jobPostings).orderBy(desc(jobPostings.lastSeenAt)),
+      this.db
+        .select()
+        .from(jobPostingVersions)
+        .orderBy(desc(jobPostingVersions.capturedAt), desc(jobPostingVersions.createdAt)),
       this.db.select().from(jobAnalyses),
       this.db.select().from(careerDocuments).where(eq(careerDocuments.userId, user.id)),
       this.db.select().from(gapAnalyses).where(eq(gapAnalyses.userId, user.id)),
@@ -344,10 +500,139 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
 
     return snapshot.jobPostings.map((jobPosting) => ({
       ...jobPosting,
-      latestVersion: snapshot.jobPostingVersions.find((item) => item.jobPostingId === jobPosting.id),
+      latestVersion: sortVersions(
+        snapshot.jobPostingVersions.filter((item) => item.jobPostingId === jobPosting.id)
+      )[0],
       analysis: snapshot.jobAnalyses.find((item) => item.jobPostingId === jobPosting.id),
       gapAnalysis: snapshot.gapAnalyses.find((item) => item.jobPostingId === jobPosting.id)
     }));
+  }
+
+  async createJobPosting(input: CreateJobPostingInput): Promise<JobPostingDetailRecord> {
+    await this.ensureUserContext();
+    const manualSource = await this.ensureManualJobSource();
+    const canonicalKey = await this.buildUniqueCanonicalKey(input.companyName, input.title);
+
+    return await this.db.transaction(async (tx) => {
+      const now = new Date();
+      const [jobPostingRow] = await tx
+        .insert(jobPostings)
+        .values({
+          canonicalKey,
+          sourceId: manualSource.id,
+          sourceJobId: input.sourceJobId,
+          url: input.url,
+          companyName: input.companyName,
+          title: input.title,
+          locationText: input.locationText,
+          employmentType: input.employmentType,
+          status: input.status ?? "unknown",
+          postedAt: input.postedAt ? new Date(input.postedAt) : null,
+          detectedAt: now,
+          lastSeenAt: now,
+          updatedAt: now
+        })
+        .returning();
+
+      const [versionRow] = await tx
+        .insert(jobPostingVersions)
+        .values({
+          jobPostingId: jobPostingRow.id,
+          contentHash: buildContentHash(input.initialVersion),
+          rawText: input.initialVersion.rawText,
+          jdStructuredJson: buildStructuredContent(input.initialVersion),
+          requirementsJson: {},
+          preferredJson: {},
+          compensationJson: {},
+          metadataJson: {
+            source: "manual"
+          },
+          capturedAt: now,
+          updatedAt: now
+        })
+        .returning();
+
+      return {
+        jobPosting: this.mapJobPosting(jobPostingRow),
+        versions: [this.mapJobPostingVersion(versionRow)],
+        analysis: null,
+        gapAnalysis: null,
+        preparation: null
+      };
+    });
+  }
+
+  async updateJobPosting(input: UpdateJobPostingInput): Promise<JobPostingDetailRecord | null> {
+    await this.ensureUserContext();
+    const canonicalKey = await this.buildUniqueCanonicalKey(input.companyName, input.title, input.id);
+
+    const updated = await this.db.transaction(async (tx) => {
+      const now = new Date();
+      const [jobPostingRow] = await tx
+        .update(jobPostings)
+        .set({
+          canonicalKey,
+          sourceJobId: input.sourceJobId,
+          url: input.url,
+          companyName: input.companyName,
+          title: input.title,
+          locationText: input.locationText,
+          employmentType: input.employmentType,
+          status: input.status,
+          postedAt: input.postedAt ? new Date(input.postedAt) : null,
+          lastSeenAt: now,
+          updatedAt: now
+        })
+        .where(eq(jobPostings.id, input.id))
+        .returning();
+
+      if (!jobPostingRow) {
+        return null;
+      }
+
+      const [latestVersionRow] = await tx
+        .select()
+        .from(jobPostingVersions)
+        .where(eq(jobPostingVersions.jobPostingId, input.id))
+        .orderBy(desc(jobPostingVersions.capturedAt), desc(jobPostingVersions.createdAt))
+        .limit(1);
+
+      if (latestVersionRow) {
+        await tx
+          .update(jobPostingVersions)
+          .set({
+            rawText: input.latestVersion.rawText,
+            jdStructuredJson: buildStructuredContent(input.latestVersion),
+            contentHash: buildContentHash(input.latestVersion),
+            capturedAt: now,
+            updatedAt: now
+          })
+          .where(eq(jobPostingVersions.id, latestVersionRow.id));
+      } else {
+        await tx.insert(jobPostingVersions).values({
+          jobPostingId: input.id,
+          contentHash: buildContentHash(input.latestVersion),
+          rawText: input.latestVersion.rawText,
+          jdStructuredJson: buildStructuredContent(input.latestVersion),
+          requirementsJson: {},
+          preferredJson: {},
+          compensationJson: {},
+          metadataJson: {
+            source: "manual"
+          },
+          capturedAt: now,
+          updatedAt: now
+        });
+      }
+
+      return true;
+    });
+
+    if (!updated) {
+      return null;
+    }
+
+    return await this.getJobPostingDetail(input.id);
   }
 
   async getJobPostingDetail(jobPostingId: string): Promise<JobPostingDetailRecord | null> {
@@ -360,7 +645,9 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
 
     return {
       jobPosting,
-      versions: snapshot.jobPostingVersions.filter((item) => item.jobPostingId === jobPostingId),
+      versions: sortVersions(
+        snapshot.jobPostingVersions.filter((item) => item.jobPostingId === jobPostingId)
+      ),
       analysis: snapshot.jobAnalyses.find((item) => item.jobPostingId === jobPostingId) ?? null,
       gapAnalysis: snapshot.gapAnalyses.find((item) => item.jobPostingId === jobPostingId) ?? null,
       preparation:
@@ -431,25 +718,28 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
         updatedAt: row.updatedAt.toISOString()
       })),
       documents: documentRows.map((row) => this.mapCareerDocument(row)),
-      skills: userSkillRows.map((row) => ({
-        userId: row.userId,
-        skillId: row.skillId,
-        proficiency: row.proficiency ?? undefined,
-        evidenceCount: row.evidenceCount,
-        lastVerifiedAt: row.lastVerifiedAt?.toISOString(),
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString(),
-        skill:
-          skillRows.find((skillRow) => skillRow.id === row.skillId)
+      skills: userSkillRows.map((row) => {
+        const skillRow = skillRows.find((candidate) => candidate.id === row.skillId);
+
+        return {
+          userId: row.userId,
+          skillId: row.skillId,
+          proficiency: row.proficiency ?? undefined,
+          evidenceCount: row.evidenceCount,
+          lastVerifiedAt: row.lastVerifiedAt?.toISOString(),
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+          skill: skillRow
             ? {
-                id: skillRows.find((skillRow) => skillRow.id === row.skillId)!.id,
-                name: skillRows.find((skillRow) => skillRow.id === row.skillId)!.name,
-                category: skillRows.find((skillRow) => skillRow.id === row.skillId)!.category ?? undefined,
-                createdAt: skillRows.find((skillRow) => skillRow.id === row.skillId)!.createdAt.toISOString(),
-                updatedAt: skillRows.find((skillRow) => skillRow.id === row.skillId)!.updatedAt.toISOString()
+                id: skillRow.id,
+                name: skillRow.name,
+                category: skillRow.category ?? undefined,
+                createdAt: skillRow.createdAt.toISOString(),
+                updatedAt: skillRow.updatedAt.toISOString()
               }
             : null
-      })),
+        };
+      }),
       externalAccounts: accountRows.map((row) => ({
         id: row.id,
         userId: row.userId,
@@ -468,48 +758,17 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
     const preparationRows = await this.db
       .select()
       .from(applicationPreparations)
-      .where(eq(applicationPreparations.userId, user.id));
+      .where(eq(applicationPreparations.userId, user.id))
+      .orderBy(desc(applicationPreparations.updatedAt));
 
-    const jobPostingIds = preparationRows.map((row) => row.jobPostingId);
-    const preparationIds = preparationRows.map((row) => row.id);
-
-    const [jobPostingRows, documentRows] = await Promise.all([
-      jobPostingIds.length > 0
-        ? this.db.select().from(jobPostings).where(inArray(jobPostings.id, jobPostingIds))
-        : Promise.resolve([]),
-      preparationIds.length > 0
-        ? this.db
-            .select()
-            .from(applicationDocuments)
-            .where(inArray(applicationDocuments.applicationPreparationId, preparationIds))
-        : Promise.resolve([])
-    ]);
-
-    return preparationRows.map((row) => ({
-      ...this.mapApplicationPreparation(row),
-      jobPosting:
-        jobPostingRows.find((jobPostingRow) => jobPostingRow.id === row.jobPostingId)
-          ? this.mapJobPosting(jobPostingRows.find((jobPostingRow) => jobPostingRow.id === row.jobPostingId)!)
-          : null,
-      documents: documentRows
-        .filter((documentRow) => documentRow.applicationPreparationId === row.id)
-        .map((documentRow) => ({
-          id: documentRow.id,
-          applicationPreparationId: documentRow.applicationPreparationId,
-          docType: documentRow.docType as "resume" | "cover_letter" | "email" | "note",
-          content: documentRow.content,
-          version: documentRow.version,
-          status: documentRow.status,
-          createdAt: documentRow.createdAt.toISOString(),
-          updatedAt: documentRow.updatedAt.toISOString()
-        }))
-    }));
+    return await this.loadApplicationPreparationRecords(preparationRows);
   }
 
   async createApplicationPreparation(
     input: CreateApplicationPreparationInput
-  ): Promise<ApplicationPreparationRecord | ApplicationPreparation> {
+  ): Promise<ApplicationPreparationRecord> {
     const { user } = await this.ensureUserContext();
+
     const [existing] = await this.db
       .select()
       .from(applicationPreparations)
@@ -522,7 +781,7 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
       .limit(1);
 
     if (existing) {
-      return this.mapApplicationPreparation(existing);
+      return (await this.loadApplicationPreparationRecords([existing]))[0];
     }
 
     const [document] = await this.db
@@ -537,11 +796,72 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
         userId: user.id,
         jobPostingId: input.jobPostingId,
         status: "drafting",
-        strategyNote: input.strategyNote,
+        strategyNote: normalizeStrategyNote(input.strategyNote),
         targetResumeId: document?.id
       })
       .returning();
 
-    return this.mapApplicationPreparation(row);
+    return (await this.loadApplicationPreparationRecords([row]))[0];
+  }
+
+  async updateApplicationPreparation(
+    input: UpdateApplicationPreparationInput
+  ): Promise<ApplicationPreparationRecord | null> {
+    const { user } = await this.ensureUserContext();
+    const resumeId = normalizeOptionalId(input.targetResumeId);
+    const coverLetterId = normalizeOptionalId(input.targetCoverLetterId);
+    const documentIds = [resumeId, coverLetterId].filter((value): value is string => Boolean(value));
+
+    const documentRows =
+      documentIds.length > 0
+        ? await this.db
+            .select()
+            .from(careerDocuments)
+            .where(and(eq(careerDocuments.userId, user.id), inArray(careerDocuments.id, documentIds)))
+        : [];
+
+    const validResumeId =
+      resumeId && documentRows.some((row) => row.id === resumeId && row.docType === "resume")
+        ? resumeId
+        : null;
+    const validCoverLetterId =
+      coverLetterId &&
+      documentRows.some((row) => row.id === coverLetterId && row.docType === "cover_letter")
+        ? coverLetterId
+        : null;
+
+    const [row] = await this.db
+      .update(applicationPreparations)
+      .set({
+        status: input.status,
+        strategyNote: normalizeStrategyNote(input.strategyNote),
+        approvalRequired: input.approvalRequired,
+        targetResumeId: validResumeId,
+        targetCoverLetterId: validCoverLetterId,
+        updatedAt: new Date()
+      })
+      .where(and(eq(applicationPreparations.id, input.id), eq(applicationPreparations.userId, user.id)))
+      .returning();
+
+    if (!row) {
+      return null;
+    }
+
+    return (await this.loadApplicationPreparationRecords([row]))[0];
+  }
+
+  async deleteApplicationPreparation(applicationPreparationId: string): Promise<boolean> {
+    const { user } = await this.ensureUserContext();
+    const rows = await this.db
+      .delete(applicationPreparations)
+      .where(
+        and(
+          eq(applicationPreparations.id, applicationPreparationId),
+          eq(applicationPreparations.userId, user.id)
+        )
+      )
+      .returning({ id: applicationPreparations.id });
+
+    return rows.length > 0;
   }
 }

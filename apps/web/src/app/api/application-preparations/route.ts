@@ -3,6 +3,7 @@ import {
   createApplicationPreparation,
   listApplicationPreparations
 } from "../../../server/services/applications";
+import { getJobPostingDetail } from "../../../server/services/job-postings";
 
 export async function GET() {
   return NextResponse.json({
@@ -23,6 +24,19 @@ export async function POST(request: Request) {
       },
       {
         status: 400
+      }
+    );
+  }
+
+  const jobPosting = await getJobPostingDetail(body.jobPostingId);
+
+  if (!jobPosting) {
+    return NextResponse.json(
+      {
+        error: "job posting not found"
+      },
+      {
+        status: 404
       }
     );
   }

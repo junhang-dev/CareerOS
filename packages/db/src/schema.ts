@@ -16,6 +16,7 @@ export const remotePreferenceEnum = pgEnum("remote_preference", [
   "remote",
   "flexible"
 ]);
+export const sourceTypeEnum = pgEnum("source_type", ["site", "rss", "api", "manual"]);
 
 export const postingStatusEnum = pgEnum("posting_status", ["active", "closed", "unknown"]);
 export const applicationStatusEnum = pgEnum("application_status", [
@@ -74,12 +75,24 @@ export const searchProfiles = pgTable("search_profiles", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
 });
 
+export const jobSources = pgTable("job_sources", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sourceType: sourceTypeEnum("source_type").notNull(),
+  name: text("name").notNull().unique(),
+  baseUrl: text("base_url").notNull(),
+  country: text("country"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
+});
+
 export const jobPostings = pgTable(
   "job_postings",
   {
     id: uuid("id").defaultRandom().primaryKey(),
     canonicalKey: text("canonical_key").notNull(),
-    sourceId: uuid("source_id").notNull(),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => jobSources.id, { onDelete: "restrict" }),
     sourceJobId: text("source_job_id"),
     url: text("url").notNull(),
     companyName: text("company_name").notNull(),
