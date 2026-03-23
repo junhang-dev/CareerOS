@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createApplicationPreparationAction } from "../../application-assistant/actions";
-import { updateJobPostingAction } from "../actions";
+import { runJobPostingAnalysisAction, updateJobPostingAction } from "../actions";
 import { PageIntro } from "../../../components/page-intro";
 import { formatDate } from "../../../lib/format";
 import { getJobPostingDetail } from "../../../server/services/job-postings";
@@ -46,6 +46,12 @@ export default async function JobPostingDetailPage({ params }: JobPostingDetailP
             <span className="pill">최근 캡처 {formatDate(latestVersion?.capturedAt)}</span>
             <span className="pill">준비 상태 {detail.preparation?.status ?? "미생성"}</span>
           </div>
+          <form action={runJobPostingAnalysisAction} className="inline-form">
+            <input name="jobPostingId" type="hidden" value={detail.jobPosting.id} />
+            <button className="button button--ghost" type="submit">
+              구조화/분석 실행
+            </button>
+          </form>
           {detail.preparation ? (
             <Link className="nav__link nav__link--inline" href="/application-assistant">
               지원 준비 비서에서 보기

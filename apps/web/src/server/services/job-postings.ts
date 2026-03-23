@@ -52,3 +52,10 @@ export async function updateJobPosting(input: UpdateJobPostingInput) {
 export async function getJobPostingDetail(jobPostingId: string) {
   return await getCareerOSRepository().getJobPostingDetail(jobPostingId);
 }
+
+export async function runJobPostingAnalysis(jobPostingId: string) {
+  return await getCareerOSRepository().runJobPostingAnalysis({
+    jobPostingId,
+    mode: "parse_and_analyze"
+  });
+}

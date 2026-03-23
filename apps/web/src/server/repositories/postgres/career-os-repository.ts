@@ -27,17 +27,21 @@ import type {
   JsonObject
 } from "@careeros/domain";
 import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
+import { buildStubAnalysis } from "../analysis-stub";
 import type {
   ApplicationPreparationRecord,
   CareerAssetSnapshot,
   CareerOSRepository,
   CreateApplicationPreparationInput,
+  CreateCareerDocumentInput,
   CreateJobPostingInput,
   CreateSearchProfileInput,
   JobPostingDetailRecord,
   JobPostingListItem,
   RepositorySnapshot,
+  RunJobPostingAnalysisInput,
   SearchProfileRecord,
+  UpdateCareerDocumentInput,
   UpdateApplicationPreparationInput,
   UpdateJobPostingInput,
   UpdateSearchProfileInput
@@ -751,6 +755,247 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
         updatedAt: row.updatedAt.toISOString()
       }))
     };
+  }
+
+  async listCareerDocuments() {
+    const { user } = await this.ensureUserContext();
+    const rows = await this.db
+      .select()
+      .from(careerDocuments)
+      .where(eq(careerDocuments.userId, user.id))
+      .orderBy(desc(careerDocuments.updatedAt), desc(careerDocuments.createdAt));
+
+    return rows.map((row) => this.mapCareerDocument(row));
+  }
+
+  async createCareerDocument(input: CreateCareerDocumentInput) {
+    const { user } = await this.ensureUserContext();
+    const [row] = await this.db
+      .insert(careerDocuments)
+      .values({
+        userId: user.id,
+        docType: input.docType,
+        title: input.title,
+        storagePath: input.storagePath,
+        sourceType: input.sourceType,
+        parsedText: input.parsedText,
+        structuredJson: input.structured ?? {}
+      })
+      .returning();
+
+    return this.mapCareerDocument(row);
+  }
+
+  async updateCareerDocument(input: UpdateCareerDocumentInput) {
+    const { user } = await this.ensureUserContext();
+    const [row] = await this.db
+      .update(careerDocuments)
+      .set({
+        docType: input.docType,
+        title: input.title,
+        sourceType: input.sourceType,
+        storagePath: input.storagePath,
+        parsedText: input.parsedText,
+        structuredJson: input.structured ?? {},
+        version: input.version,
+        updatedAt: new Date()
+      })
+      .where(and(eq(careerDocuments.id, input.id), eq(careerDocuments.userId, user.id)))
+      .returning();
+
+    return row ? this.mapCareerDocument(row) : null;
+  }
+
+  async deleteCareerDocument(documentId: string) {
+    const { user } = await this.ensureUserContext();
+
+    await this.db
+      .update(applicationPreparations)
+      .set({
+        targetResumeId: null,
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          eq(applicationPreparations.userId, user.id),
+          eq(applicationPreparations.targetResumeId, documentId)
+        )
+      );
+
+    await this.db
+      .update(applicationPreparations)
+      .set({
+        targetCoverLetterId: null,
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          eq(applicationPreparations.userId, user.id),
+          eq(applicationPreparations.targetCoverLetterId, documentId)
+        )
+      );
+
+    const rows = await this.db
+      .delete(careerDocuments)
+      .where(and(eq(careerDocuments.id, documentId), eq(careerDocuments.userId, user.id)))
+      .returning({ id: careerDocuments.id });
+
+    return rows.length > 0;
+  }
+
+  async runJobPostingAnalysis(input: RunJobPostingAnalysisInput): Promise<JobPostingDetailRecord | null> {
+    const { user, profile } = await this.ensureUserContext();
+    const [jobPostingRow] = await this.db
+      .select()
+      .from(jobPostings)
+      .where(eq(jobPostings.id, input.jobPostingId))
+      .limit(1);
+
+    if (!jobPostingRow) {
+      return null;
+    }
+
+    let [latestVersionRow] = await this.db
+      .select()
+      .from(jobPostingVersions)
+      .where(eq(jobPostingVersions.jobPostingId, input.jobPostingId))
+      .orderBy(desc(jobPostingVersions.capturedAt), desc(jobPostingVersions.createdAt))
+      .limit(1);
+
+    if (!latestVersionRow) {
+      const now = new Date();
+      [latestVersionRow] = await this.db
+        .insert(jobPostingVersions)
+        .values({
+          jobPostingId: input.jobPostingId,
+          contentHash: buildContentHash({}),
+          jdStructuredJson: {},
+          requirementsJson: {},
+          preferredJson: {},
+          compensationJson: {},
+          metadataJson: {
+            source: "manual"
+          },
+          capturedAt: now,
+          updatedAt: now
+        })
+        .returning();
+    }
+
+    const [documentRows, userSkillRows, skillRows] = await Promise.all([
+      this.db.select().from(careerDocuments).where(eq(careerDocuments.userId, user.id)),
+      this.db.select().from(userSkills).where(eq(userSkills.userId, user.id)),
+      this.db.select().from(skills)
+    ]);
+    const analysis = buildStubAnalysis({
+      jobPosting: this.mapJobPosting(jobPostingRow),
+      latestVersion: this.mapJobPostingVersion(latestVersionRow),
+      documents: documentRows.map((row) => this.mapCareerDocument(row)),
+      profile: {
+        id: profile.id,
+        userId: profile.userId,
+        headline: profile.headline ?? undefined,
+        bio: profile.bio ?? undefined,
+        yearsExperience: profile.yearsExperience ?? undefined,
+        targetRoles: asArray<string>(profile.targetRolesJson),
+        createdAt: profile.createdAt.toISOString(),
+        updatedAt: profile.updatedAt.toISOString()
+      },
+      skills: userSkillRows.map((row) => {
+        const skillRow = skillRows.find((candidate) => candidate.id === row.skillId);
+
+        return {
+          userId: row.userId,
+          skillId: row.skillId,
+          proficiency: row.proficiency ?? undefined,
+          evidenceCount: row.evidenceCount,
+          lastVerifiedAt: row.lastVerifiedAt?.toISOString(),
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+          skill: skillRow
+            ? {
+                id: skillRow.id,
+                name: skillRow.name,
+                category: skillRow.category ?? undefined,
+                createdAt: skillRow.createdAt.toISOString(),
+                updatedAt: skillRow.updatedAt.toISOString()
+              }
+            : null
+        };
+      })
+    });
+
+    await this.db.transaction(async (tx) => {
+      const now = new Date();
+      const [existingJobAnalysis] = await tx
+        .select()
+        .from(jobAnalyses)
+        .where(eq(jobAnalyses.jobPostingId, input.jobPostingId))
+        .limit(1);
+
+      if (existingJobAnalysis) {
+        await tx
+          .update(jobAnalyses)
+          .set({
+            analysisVersion: String(analysis.metadata.version),
+            summary: analysis.summary,
+            keyRequirementsJson: analysis.keyRequirements,
+            riskNotesJson: analysis.riskNotes,
+            fitScore: analysis.fitScore,
+            fitReasonJson: analysis.fitReason,
+            gapSummary: analysis.gapSummary,
+            updatedAt: now
+          })
+          .where(eq(jobAnalyses.id, existingJobAnalysis.id));
+      } else {
+        await tx.insert(jobAnalyses).values({
+          jobPostingId: input.jobPostingId,
+          analysisVersion: String(analysis.metadata.version),
+          summary: analysis.summary,
+          keyRequirementsJson: analysis.keyRequirements,
+          riskNotesJson: analysis.riskNotes,
+          fitScore: analysis.fitScore,
+          fitReasonJson: analysis.fitReason,
+          gapSummary: analysis.gapSummary,
+          updatedAt: now
+        });
+      }
+
+      const [existingGapAnalysis] = await tx
+        .select()
+        .from(gapAnalyses)
+        .where(and(eq(gapAnalyses.jobPostingId, input.jobPostingId), eq(gapAnalyses.userId, user.id)))
+        .limit(1);
+
+      if (existingGapAnalysis) {
+        await tx
+          .update(gapAnalyses)
+          .set({
+            matchedSkillsJson: analysis.matchedSkills,
+            missingSkillsJson: analysis.missingSkills,
+            experienceGapsJson: analysis.experienceGaps,
+            recommendationsJson: analysis.recommendations,
+            confidence: Math.round(analysis.confidence * 10000),
+            metadataJson: analysis.metadata,
+            updatedAt: now
+          })
+          .where(eq(gapAnalyses.id, existingGapAnalysis.id));
+      } else {
+        await tx.insert(gapAnalyses).values({
+          jobPostingId: input.jobPostingId,
+          userId: user.id,
+          matchedSkillsJson: analysis.matchedSkills,
+          missingSkillsJson: analysis.missingSkills,
+          experienceGapsJson: analysis.experienceGaps,
+          recommendationsJson: analysis.recommendations,
+          confidence: Math.round(analysis.confidence * 10000),
+          metadataJson: analysis.metadata,
+          updatedAt: now
+        });
+      }
+    });
+
+    return await this.getJobPostingDetail(input.jobPostingId);
   }
 
   async listApplicationPreparations(): Promise<ApplicationPreparationRecord[]> {

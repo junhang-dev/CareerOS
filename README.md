@@ -41,7 +41,9 @@ npm run dev:web
 - `/career-assets`
 - `/application-assistant`
 
-현재는 DB 대신 인메모리 목업 저장소를 사용한다. 화면과 API 계약을 먼저 확인한 뒤 PostgreSQL로 교체하는 순서다.
+현재는 `memory`와 `postgres` 드라이버를 모두 지원한다. 기본값은 인메모리 저장소이며,
+PostgreSQL 드라이버에서는 탐색 프로필, 수동 공고 입력, 자산 문서 메타데이터, 지원 준비,
+수동 분석 실행까지 연결된 상태다.
 
 ## 데이터 드라이버
 
@@ -52,7 +54,9 @@ npm run dev:web
 CAREEROS_DATA_DRIVER=memory npm run dev:web
 ```
 
-`postgres` 드라이버는 기본 싱글유저 컨텍스트 생성, 대시보드/조회용 read path, `search profile`의 첫 CRUD까지 연결된 상태다.
+`postgres` 드라이버는 기본 싱글유저 컨텍스트 생성, 대시보드/조회 path, `search profile`,
+`job posting`, `career document`, `application preparation`의 writable path와 수동 분석 실행까지
+연결된 상태다.
 
 ## PostgreSQL 실행
 

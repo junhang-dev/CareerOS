@@ -3,6 +3,8 @@ import type {
   ApplicationPreparation,
   ApplicationPreparationStatus,
   CareerDocument,
+  CareerDocumentSource,
+  CareerDocumentType,
   CareerExperience,
   CareerProfile,
   CareerProject,
@@ -79,6 +81,26 @@ export type CreateApplicationPreparationInput = {
   strategyNote?: string;
 };
 
+export type CreateCareerDocumentInput = {
+  docType: CareerDocumentType;
+  title: string;
+  sourceType: CareerDocumentSource;
+  storagePath?: string;
+  parsedText?: string;
+  structured?: Record<string, unknown>;
+};
+
+export type UpdateCareerDocumentInput = {
+  id: string;
+  docType: CareerDocumentType;
+  title: string;
+  sourceType: CareerDocumentSource;
+  storagePath?: string;
+  parsedText?: string;
+  structured?: Record<string, unknown>;
+  version?: number;
+};
+
 export type UpdateApplicationPreparationInput = {
   id: string;
   status: ApplicationPreparationStatus;
@@ -86,6 +108,11 @@ export type UpdateApplicationPreparationInput = {
   approvalRequired: boolean;
   targetResumeId?: string | null;
   targetCoverLetterId?: string | null;
+};
+
+export type RunJobPostingAnalysisInput = {
+  jobPostingId: string;
+  mode: "parse_and_analyze";
 };
 
 export type CreateJobPostingInput = {
@@ -145,6 +172,11 @@ export interface CareerOSRepository {
   updateJobPosting(input: UpdateJobPostingInput): Promise<JobPostingDetailRecord | null>;
   getJobPostingDetail(jobPostingId: string): Promise<JobPostingDetailRecord | null>;
   getCareerAssetSnapshot(): Promise<CareerAssetSnapshot>;
+  listCareerDocuments(): Promise<CareerDocument[]>;
+  createCareerDocument(input: CreateCareerDocumentInput): Promise<CareerDocument>;
+  updateCareerDocument(input: UpdateCareerDocumentInput): Promise<CareerDocument | null>;
+  deleteCareerDocument(documentId: string): Promise<boolean>;
+  runJobPostingAnalysis(input: RunJobPostingAnalysisInput): Promise<JobPostingDetailRecord | null>;
   listApplicationPreparations(): Promise<ApplicationPreparationRecord[]>;
   createApplicationPreparation(input: CreateApplicationPreparationInput): Promise<ApplicationPreparationRecord>;
   updateApplicationPreparation(

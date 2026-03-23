@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import {
-  createCareerDocument,
-  getCareerAssetSnapshot
-} from "../../../server/services/career-assets";
+  deleteCareerDocument,
+  updateCareerDocument
+} from "../../../../server/services/career-assets";
+
+type RouteContext = {
+  params: Promise<{
+    documentId: string;
+  }>;
+};
 
 function normalizeOptionalText(value: unknown) {
   const normalized = String(value ?? "").trim();
@@ -20,11 +26,8 @@ function parseStructuredJson(value: unknown) {
   return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : {};
 }
 
-export async function GET() {
-  return NextResponse.json(await getCareerAssetSnapshot());
-}
-
-export async function POST(request: Request) {
+export async function PUT(request: Request, context: RouteContext) {
+  const params = await context.params;
   const body = (await request.json()) as {
     docType?: "resume" | "cover_letter" | "portfolio" | "note";
     title?: string;
@@ -33,6 +36,7 @@ export async function POST(request: Request) {
     parsedText?: string;
     structuredJson?: string;
     structured?: Record<string, unknown>;
+    version?: number;
   };
 
   if (!body.docType || !body.title || !body.sourceType) {
@@ -61,15 +65,31 @@ export async function POST(request: Request) {
     );
   }
 
-  return NextResponse.json(
-    await createCareerDocument({
-      docType: body.docType,
-      title: body.title.trim(),
-      sourceType: body.sourceType,
-      storagePath: normalizeOptionalText(body.storagePath),
-      parsedText: normalizeOptionalText(body.parsedText),
-      structured
-    }),
-    { status: 201 }
-  );
+  const updated = await updateCareerDocument({
+    id: params.documentId,
+    docType: body.docType,
+    title: body.title.trim(),
+    sourceType: body.sourceType,
+    storagePath: normalizeOptionalText(body.storagePath),
+    parsedText: normalizeOptionalText(body.parsedText),
+    structured,
+    version: body.version
+  });
+
+  if (!updated) {
+    return NextResponse.json({ error: "career document not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(updated);
+}
+
+export async function DELETE(_: Request, context: RouteContext) {
+  const params = await context.params;
+  const deleted = await deleteCareerDocument(params.documentId);
+
+  if (!deleted) {
+    return NextResponse.json({ error: "career document not found" }, { status: 404 });
+  }
+
+  return new Response(null, { status: 204 });
 }

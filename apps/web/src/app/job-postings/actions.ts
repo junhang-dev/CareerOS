@@ -1,7 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createJobPosting, updateJobPosting } from "../../server/services/job-postings";
+import {
+  createJobPosting,
+  runJobPostingAnalysis,
+  updateJobPosting
+} from "../../server/services/job-postings";
 
 function parseCsv(value: FormDataEntryValue | null) {
   return String(value ?? "")
@@ -92,4 +96,15 @@ export async function updateJobPostingAction(formData: FormData) {
   });
 
   revalidateJobPostingViews(id);
+}
+
+export async function runJobPostingAnalysisAction(formData: FormData) {
+  const jobPostingId = String(formData.get("jobPostingId") ?? "").trim();
+
+  if (!jobPostingId) {
+    return;
+  }
+
+  await runJobPostingAnalysis(jobPostingId);
+  revalidateJobPostingViews(jobPostingId);
 }

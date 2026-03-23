@@ -1,21 +1,28 @@
 import { createHash } from "node:crypto";
 import type {
   ApplicationPreparationStatus,
+  CareerDocument,
+  CareerDocumentSource,
+  CareerDocumentType,
   JobPostingStatus,
   JobPostingStructuredContent
 } from "@careeros/domain";
 import { cloneMockDatabase, getMockDatabase } from "../../data/mock-state";
+import { buildStubAnalysis } from "../analysis-stub";
 import type {
   ApplicationPreparationRecord,
   CareerAssetSnapshot,
   CareerOSRepository,
   CreateApplicationPreparationInput,
+  CreateCareerDocumentInput,
   CreateJobPostingInput,
   CreateSearchProfileInput,
   JobPostingDetailRecord,
   JobPostingListItem,
   RepositorySnapshot,
+  RunJobPostingAnalysisInput,
   SearchProfileRecord,
+  UpdateCareerDocumentInput,
   UpdateApplicationPreparationInput,
   UpdateJobPostingInput,
   UpdateSearchProfileInput
@@ -113,6 +120,14 @@ function normalizeOptionalId(value?: string | null) {
 function normalizeStrategyNote(value?: string) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function mapCareerDocumentRecord(
+  document: ReturnType<typeof getMockDatabase>["careerDocuments"][number]
+): CareerDocument {
+  return {
+    ...document
+  };
 }
 
 export class InMemoryCareerOSRepository implements CareerOSRepository {
@@ -357,6 +372,175 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
       })),
       externalAccounts: db.externalAccounts
     };
+  }
+
+  async listCareerDocuments(): Promise<CareerDocument[]> {
+    return cloneMockDatabase().careerDocuments
+      .sort(
+        (left, right) =>
+          new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+      )
+      .map((document) => mapCareerDocumentRecord(document));
+  }
+
+  async createCareerDocument(input: CreateCareerDocumentInput): Promise<CareerDocument> {
+    const db = getMockDatabase();
+    const now = new Date().toISOString();
+    const document = {
+      id: crypto.randomUUID(),
+      userId: db.user.id,
+      docType: input.docType as CareerDocumentType,
+      title: input.title,
+      storagePath: input.storagePath,
+      sourceType: input.sourceType as CareerDocumentSource,
+      parsedText: input.parsedText,
+      structured: input.structured ?? {},
+      version: 1,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    db.careerDocuments.push(document);
+    return mapCareerDocumentRecord(document);
+  }
+
+  async updateCareerDocument(input: UpdateCareerDocumentInput): Promise<CareerDocument | null> {
+    const db = getMockDatabase();
+    const document = db.careerDocuments.find((item) => item.id === input.id);
+
+    if (!document) {
+      return null;
+    }
+
+    document.docType = input.docType;
+    document.title = input.title;
+    document.sourceType = input.sourceType;
+    document.storagePath = input.storagePath;
+    document.parsedText = input.parsedText;
+    document.structured = input.structured ?? {};
+    document.version = input.version ?? document.version;
+    document.updatedAt = new Date().toISOString();
+
+    return mapCareerDocumentRecord(document);
+  }
+
+  async deleteCareerDocument(documentId: string): Promise<boolean> {
+    const db = getMockDatabase();
+    const previousLength = db.careerDocuments.length;
+
+    db.careerDocuments = db.careerDocuments.filter((item) => item.id !== documentId);
+    db.applicationPreparations = db.applicationPreparations.map((item) => ({
+      ...item,
+      targetResumeId: item.targetResumeId === documentId ? undefined : item.targetResumeId,
+      targetCoverLetterId:
+        item.targetCoverLetterId === documentId ? undefined : item.targetCoverLetterId
+    }));
+
+    return previousLength !== db.careerDocuments.length;
+  }
+
+  async runJobPostingAnalysis(
+    input: RunJobPostingAnalysisInput
+  ): Promise<JobPostingDetailRecord | null> {
+    const db = getMockDatabase();
+    const jobPosting = db.jobPostings.find((item) => item.id === input.jobPostingId);
+
+    if (!jobPosting) {
+      return null;
+    }
+
+    const now = new Date().toISOString();
+    let latestVersion = sortVersions(
+      db.jobPostingVersions.filter((item) => item.jobPostingId === input.jobPostingId)
+    )[0];
+
+    if (!latestVersion) {
+      latestVersion = {
+        id: crypto.randomUUID(),
+        jobPostingId: input.jobPostingId,
+        contentHash: buildContentHash({}),
+        rawHtmlPath: undefined,
+        rawText: undefined,
+        jdStructured: {},
+        requirements: {},
+        preferred: {},
+        compensation: {},
+        metadata: {
+          source: "manual"
+        },
+        capturedAt: now,
+        createdAt: now,
+        updatedAt: now
+      };
+      db.jobPostingVersions.push(latestVersion);
+    }
+
+    const analysis = buildStubAnalysis({
+      jobPosting,
+      latestVersion,
+      documents: db.careerDocuments,
+      profile: db.careerProfile,
+      skills: db.userSkills.map((userSkill) => ({
+        ...userSkill,
+        skill: db.skills.find((skill) => skill.id === userSkill.skillId) ?? null
+      }))
+    });
+    const existingJobAnalysis = db.jobAnalyses.find((item) => item.jobPostingId === input.jobPostingId);
+
+    if (existingJobAnalysis) {
+      existingJobAnalysis.analysisVersion = String(analysis.metadata.version);
+      existingJobAnalysis.summary = analysis.summary;
+      existingJobAnalysis.keyRequirements = analysis.keyRequirements;
+      existingJobAnalysis.riskNotes = analysis.riskNotes;
+      existingJobAnalysis.fitScore = analysis.fitScore;
+      existingJobAnalysis.fitReason = analysis.fitReason;
+      existingJobAnalysis.gapSummary = analysis.gapSummary;
+      existingJobAnalysis.updatedAt = now;
+    } else {
+      db.jobAnalyses.push({
+        id: crypto.randomUUID(),
+        jobPostingId: input.jobPostingId,
+        analysisVersion: String(analysis.metadata.version),
+        summary: analysis.summary,
+        keyRequirements: analysis.keyRequirements,
+        riskNotes: analysis.riskNotes,
+        fitScore: analysis.fitScore,
+        fitReason: analysis.fitReason,
+        gapSummary: analysis.gapSummary,
+        createdAt: now,
+        updatedAt: now
+      });
+    }
+
+    const existingGapAnalysis = db.gapAnalyses.find(
+      (item) => item.jobPostingId === input.jobPostingId && item.userId === db.user.id
+    );
+
+    if (existingGapAnalysis) {
+      existingGapAnalysis.matchedSkills = analysis.matchedSkills;
+      existingGapAnalysis.missingSkills = analysis.missingSkills;
+      existingGapAnalysis.experienceGaps = analysis.experienceGaps;
+      existingGapAnalysis.recommendations = analysis.recommendations;
+      existingGapAnalysis.confidence = analysis.confidence;
+      existingGapAnalysis.metadata = analysis.metadata;
+      existingGapAnalysis.updatedAt = now;
+    } else {
+      db.gapAnalyses.push({
+        id: crypto.randomUUID(),
+        jobPostingId: input.jobPostingId,
+        userId: db.user.id,
+        matchedSkills: analysis.matchedSkills,
+        missingSkills: analysis.missingSkills,
+        experienceGaps: analysis.experienceGaps,
+        recommendations: analysis.recommendations,
+        confidence: analysis.confidence,
+        metadata: analysis.metadata,
+        createdAt: now,
+        updatedAt: now
+      });
+    }
+
+    return await this.getJobPostingDetail(input.jobPostingId);
   }
 
   async listApplicationPreparations(): Promise<ApplicationPreparationRecord[]> {

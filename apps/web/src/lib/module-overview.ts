@@ -39,10 +39,10 @@ export const moduleOverview = [
 ] as const;
 
 export const nextMilestones = [
-  "실제 Next.js 의존성 설치와 App Router 기동",
-  "PostgreSQL 마이그레이션 적용과 seed 데이터 작성",
-  "첫 채용 소스 어댑터 구현",
-  "문서 업로드와 텍스트 추출 파이프라인 연결"
+  "career profile / experience / project 자산 CRUD 확장",
+  "첫 채용 소스 어댑터와 manual import 진입점 연결",
+  "문서 업로드와 텍스트 추출 파이프라인 연결",
+  "stub 분석을 워커/LLM 기반 실제 분석으로 교체"
 ] as const;
 
 export const recommendedPaths = [
@@ -52,4 +52,3 @@ export const recommendedPaths = [
   "packages/workers/src/contracts.ts",
   "docs/architecture/system-overview.md"
 ] as const;
-

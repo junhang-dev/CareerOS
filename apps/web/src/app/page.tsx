@@ -87,8 +87,8 @@ export default async function HomePage() {
             <article className="todo-card" key={item}>
               <h3>{item}</h3>
               <p>
-                TODO: 실제 런타임 의존성과 데이터 파이프라인은 아직 연결되지 않았다. 현재 구조를
-                기준으로 순차 구현하면 된다.
+                현재 MVP는 탐색 프로필, 수동 공고 입력, 자산 문서, 수동 분석, 지원 준비까지 연결된
+                상태다. 다음 단계는 외부 유입과 실제 파이프라인 자동화다.
               </p>
             </article>
           ))}
