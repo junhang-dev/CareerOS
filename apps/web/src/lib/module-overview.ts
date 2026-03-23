@@ -39,10 +39,10 @@ export const moduleOverview = [
 ] as const;
 
 export const nextMilestones = [
-  "career profile / experience / project 자산 CRUD 확장",
   "첫 채용 소스 어댑터와 manual import 진입점 연결",
   "문서 업로드와 텍스트 추출 파이프라인 연결",
-  "stub 분석을 워커/LLM 기반 실제 분석으로 교체"
+  "stub 분석을 워커/LLM 기반 실제 분석으로 교체",
+  "지원 준비 문서 초안 생성과 리뷰 단계 확장"
 ] as const;
 
 export const recommendedPaths = [

@@ -14,7 +14,9 @@ import type {
   CareerAssetSnapshot,
   CareerOSRepository,
   CreateApplicationPreparationInput,
+  CreateCareerExperienceInput,
   CreateCareerDocumentInput,
+  CreateCareerProjectInput,
   CreateJobPostingInput,
   CreateSearchProfileInput,
   JobPostingDetailRecord,
@@ -22,9 +24,12 @@ import type {
   RepositorySnapshot,
   RunJobPostingAnalysisInput,
   SearchProfileRecord,
+  UpdateCareerExperienceInput,
   UpdateCareerDocumentInput,
+  UpdateCareerProfileInput,
   UpdateApplicationPreparationInput,
   UpdateJobPostingInput,
+  UpdateCareerProjectInput,
   UpdateSearchProfileInput
 } from "../types";
 
@@ -120,6 +125,30 @@ function normalizeOptionalId(value?: string | null) {
 function normalizeStrategyNote(value?: string) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function assertCareerExperienceDateRange(startDate: string, endDate?: string) {
+  if (endDate && new Date(endDate).getTime() < new Date(startDate).getTime()) {
+    throw new Error("career experience endDate must not be earlier than startDate");
+  }
+}
+
+function sortCareerExperiences<T extends { startDate: string; createdAt: string }>(experiences: T[]) {
+  return [...experiences].sort(
+    (left, right) =>
+      new Date(right.startDate).getTime() -
+        new Date(left.startDate).getTime() ||
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+  );
+}
+
+function sortCareerProjects<T extends { updatedAt: string; createdAt: string }>(projects: T[]) {
+  return [...projects].sort(
+    (left, right) =>
+      new Date(right.updatedAt).getTime() -
+        new Date(left.updatedAt).getTime() ||
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+  );
 }
 
 function mapCareerDocumentRecord(
@@ -363,8 +392,8 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
     return {
       user: db.user,
       profile: db.careerProfile,
-      experiences: db.careerExperiences,
-      projects: db.careerProjects,
+      experiences: sortCareerExperiences(db.careerExperiences),
+      projects: sortCareerProjects(db.careerProjects),
       documents: db.careerDocuments,
       skills: db.userSkills.map((userSkill) => ({
         ...userSkill,
@@ -372,6 +401,124 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
       })),
       externalAccounts: db.externalAccounts
     };
+  }
+
+  async updateCareerProfile(input: UpdateCareerProfileInput) {
+    const db = getMockDatabase();
+
+    db.careerProfile.headline = input.headline;
+    db.careerProfile.bio = input.bio;
+    db.careerProfile.yearsExperience = input.yearsExperience;
+    db.careerProfile.targetRoles = input.targetRoles ?? [];
+    db.careerProfile.updatedAt = new Date().toISOString();
+
+    return {
+      ...db.careerProfile
+    };
+  }
+
+  async createCareerExperience(input: CreateCareerExperienceInput) {
+    assertCareerExperienceDateRange(input.startDate, input.endDate);
+    const db = getMockDatabase();
+    const now = new Date().toISOString();
+    const experience = {
+      id: crypto.randomUUID(),
+      careerProfileId: db.careerProfile.id,
+      company: input.company,
+      role: input.role,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      description: input.description,
+      achievements: input.achievements ?? [],
+      createdAt: now,
+      updatedAt: now
+    };
+
+    db.careerExperiences.push(experience);
+    return {
+      ...experience
+    };
+  }
+
+  async updateCareerExperience(input: UpdateCareerExperienceInput) {
+    assertCareerExperienceDateRange(input.startDate, input.endDate);
+    const db = getMockDatabase();
+    const experience = db.careerExperiences.find((item) => item.id === input.id);
+
+    if (!experience) {
+      return null;
+    }
+
+    experience.company = input.company;
+    experience.role = input.role;
+    experience.startDate = input.startDate;
+    experience.endDate = input.endDate;
+    experience.description = input.description;
+    experience.achievements = input.achievements ?? [];
+    experience.updatedAt = new Date().toISOString();
+
+    return {
+      ...experience
+    };
+  }
+
+  async deleteCareerExperience(experienceId: string) {
+    const db = getMockDatabase();
+    const previousLength = db.careerExperiences.length;
+
+    db.careerExperiences = db.careerExperiences.filter((item) => item.id !== experienceId);
+
+    return previousLength !== db.careerExperiences.length;
+  }
+
+  async createCareerProject(input: CreateCareerProjectInput) {
+    const db = getMockDatabase();
+    const now = new Date().toISOString();
+    const project = {
+      id: crypto.randomUUID(),
+      careerProfileId: db.careerProfile.id,
+      name: input.name,
+      role: input.role,
+      description: input.description,
+      outcomes: input.outcomes ?? [],
+      technologies: input.technologies ?? [],
+      createdAt: now,
+      updatedAt: now
+    };
+
+    db.careerProjects.push(project);
+    return {
+      ...project
+    };
+  }
+
+  async updateCareerProject(input: UpdateCareerProjectInput) {
+    const db = getMockDatabase();
+    const project = db.careerProjects.find((item) => item.id === input.id);
+
+    if (!project) {
+      return null;
+    }
+
+    project.name = input.name;
+    project.role = input.role;
+    project.description = input.description;
+    project.outcomes = input.outcomes ?? [];
+    project.technologies = input.technologies ?? [];
+    project.updatedAt = new Date().toISOString();
+
+    return {
+      ...project
+    };
+  }
+
+  async deleteCareerProject(projectId: string) {
+    const db = getMockDatabase();
+    const previousLength = db.careerProjects.length;
+
+    db.careerProjects = db.careerProjects.filter((item) => item.id !== projectId);
+
+    return previousLength !== db.careerProjects.length;
   }
 
   async listCareerDocuments(): Promise<CareerDocument[]> {

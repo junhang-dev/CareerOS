@@ -1,13 +1,28 @@
 import {
   createCareerDocumentAction,
+  createCareerExperienceAction,
+  createCareerProjectAction,
   deleteCareerDocumentAction,
-  updateCareerDocumentAction
+  deleteCareerExperienceAction,
+  deleteCareerProjectAction,
+  updateCareerDocumentAction,
+  updateCareerExperienceAction,
+  updateCareerProfileAction,
+  updateCareerProjectAction
 } from "./actions";
 import { PageIntro } from "../../components/page-intro";
 import { getCareerAssetSnapshot } from "../../server/services/career-assets";
 
 function stringifyStructured(value: Record<string, unknown>) {
   return Object.keys(value).length > 0 ? JSON.stringify(value, null, 2) : "";
+}
+
+function stringifyCsv(values?: string[]) {
+  return values?.join(", ") ?? "";
+}
+
+function formatDateInput(value?: string) {
+  return value ? value.slice(0, 10) : "";
 }
 
 export default async function CareerAssetsPage() {
@@ -22,8 +37,52 @@ export default async function CareerAssetsPage() {
       />
       <section className="section">
         <article className="module-card">
-          <h3>{snapshot.profile.headline}</h3>
-          <p>{snapshot.profile.bio}</p>
+          <h3>프로필 편집</h3>
+          <form action={updateCareerProfileAction} className="stack-form">
+            <div className="field-grid">
+              <label className="field">
+                <span>헤드라인</span>
+                <input
+                  defaultValue={snapshot.profile.headline ?? ""}
+                  name="headline"
+                  placeholder="Product-minded Backend Engineer"
+                  type="text"
+                />
+              </label>
+              <label className="field">
+                <span>총 경력 연차</span>
+                <input
+                  defaultValue={snapshot.profile.yearsExperience ?? ""}
+                  min={0}
+                  name="yearsExperience"
+                  type="number"
+                />
+              </label>
+              <label className="field field--full">
+                <span>타깃 역할</span>
+                <input
+                  defaultValue={stringifyCsv(snapshot.profile.targetRoles)}
+                  name="targetRoles"
+                  placeholder="Backend Engineer, Platform Engineer, Product Engineer"
+                  type="text"
+                />
+              </label>
+              <label className="field field--full">
+                <span>소개</span>
+                <textarea
+                  defaultValue={snapshot.profile.bio ?? ""}
+                  name="bio"
+                  placeholder="핵심 강점과 지향점을 간단히 정리한다."
+                  rows={4}
+                />
+              </label>
+            </div>
+            <div className="form-actions">
+              <button className="button" type="submit">
+                프로필 저장
+              </button>
+            </div>
+          </form>
           <div className="pill-row">
             {snapshot.profile.targetRoles.map((role) => (
               <span className="pill" key={role}>
@@ -32,6 +91,219 @@ export default async function CareerAssetsPage() {
             ))}
           </div>
         </article>
+
+        <div className="module-grid">
+          <article className="module-card">
+            <h3>새 경력 추가</h3>
+            <form action={createCareerExperienceAction} className="stack-form">
+              <div className="field-grid">
+                <label className="field">
+                  <span>회사명</span>
+                  <input name="company" placeholder="Demo Commerce" required type="text" />
+                </label>
+                <label className="field">
+                  <span>역할</span>
+                  <input name="role" placeholder="Backend Engineer" required type="text" />
+                </label>
+                <label className="field">
+                  <span>시작일</span>
+                  <input name="startDate" required type="date" />
+                </label>
+                <label className="field">
+                  <span>종료일</span>
+                  <input name="endDate" type="date" />
+                </label>
+                <label className="field field--full">
+                  <span>주요 성과</span>
+                  <input
+                    name="achievements"
+                    placeholder="정산 배치 40% 단축, 운영 문서 템플릿 정착"
+                    type="text"
+                  />
+                </label>
+                <label className="field field--full">
+                  <span>설명</span>
+                  <textarea
+                    name="description"
+                    placeholder="담당 시스템과 주요 책임을 입력한다."
+                    rows={4}
+                  />
+                </label>
+              </div>
+              <div className="form-actions">
+                <button className="button" type="submit">
+                  경력 추가
+                </button>
+              </div>
+            </form>
+          </article>
+
+          <article className="module-card">
+            <h3>새 프로젝트 추가</h3>
+            <form action={createCareerProjectAction} className="stack-form">
+              <div className="field-grid">
+                <label className="field">
+                  <span>프로젝트명</span>
+                  <input name="name" placeholder="CareerOS Concept" required type="text" />
+                </label>
+                <label className="field">
+                  <span>역할</span>
+                  <input name="role" placeholder="Builder" type="text" />
+                </label>
+                <label className="field field--full">
+                  <span>주요 결과</span>
+                  <input
+                    name="outcomes"
+                    placeholder="도메인 모델 설계, MVP 화면 스캐폴드 작성"
+                    type="text"
+                  />
+                </label>
+                <label className="field field--full">
+                  <span>기술 스택</span>
+                  <input
+                    name="technologies"
+                    placeholder="TypeScript, Next.js, PostgreSQL"
+                    type="text"
+                  />
+                </label>
+                <label className="field field--full">
+                  <span>설명</span>
+                  <textarea
+                    name="description"
+                    placeholder="프로젝트 목적과 범위를 입력한다."
+                    rows={4}
+                  />
+                </label>
+              </div>
+              <div className="form-actions">
+                <button className="button" type="submit">
+                  프로젝트 추가
+                </button>
+              </div>
+            </form>
+          </article>
+        </div>
+
+        <div className="module-grid">
+          <article className="module-card">
+            <h3>경력</h3>
+            <div className="stack-form">
+              {snapshot.experiences.length === 0 ? <p>아직 등록된 경력이 없다.</p> : null}
+              {snapshot.experiences.map((item) => (
+                <article className="module-card" key={item.id}>
+                  <h4>
+                    {item.company} / {item.role}
+                  </h4>
+                  <p>
+                    {formatDateInput(item.startDate)} ~ {formatDateInput(item.endDate) || "현재"}
+                  </p>
+                  <form action={updateCareerExperienceAction} className="stack-form">
+                    <input name="id" type="hidden" value={item.id} />
+                    <div className="field-grid">
+                      <label className="field">
+                        <span>회사명</span>
+                        <input defaultValue={item.company} name="company" required type="text" />
+                      </label>
+                      <label className="field">
+                        <span>역할</span>
+                        <input defaultValue={item.role} name="role" required type="text" />
+                      </label>
+                      <label className="field">
+                        <span>시작일</span>
+                        <input
+                          defaultValue={formatDateInput(item.startDate)}
+                          name="startDate"
+                          required
+                          type="date"
+                        />
+                      </label>
+                      <label className="field">
+                        <span>종료일</span>
+                        <input defaultValue={formatDateInput(item.endDate)} name="endDate" type="date" />
+                      </label>
+                      <label className="field field--full">
+                        <span>주요 성과</span>
+                        <input
+                          defaultValue={stringifyCsv(item.achievements)}
+                          name="achievements"
+                          type="text"
+                        />
+                      </label>
+                      <label className="field field--full">
+                        <span>설명</span>
+                        <textarea defaultValue={item.description ?? ""} name="description" rows={4} />
+                      </label>
+                    </div>
+                    <div className="form-actions">
+                      <button className="button" type="submit">
+                        경력 저장
+                      </button>
+                    </div>
+                  </form>
+                  <form action={deleteCareerExperienceAction} className="inline-form">
+                    <input name="id" type="hidden" value={item.id} />
+                    <button className="button button--ghost" type="submit">
+                      삭제
+                    </button>
+                  </form>
+                </article>
+              ))}
+            </div>
+          </article>
+
+          <article className="module-card">
+            <h3>프로젝트</h3>
+            <div className="stack-form">
+              {snapshot.projects.length === 0 ? <p>아직 등록된 프로젝트가 없다.</p> : null}
+              {snapshot.projects.map((item) => (
+                <article className="module-card" key={item.id}>
+                  <h4>{item.name}</h4>
+                  <form action={updateCareerProjectAction} className="stack-form">
+                    <input name="id" type="hidden" value={item.id} />
+                    <div className="field-grid">
+                      <label className="field">
+                        <span>프로젝트명</span>
+                        <input defaultValue={item.name} name="name" required type="text" />
+                      </label>
+                      <label className="field">
+                        <span>역할</span>
+                        <input defaultValue={item.role ?? ""} name="role" type="text" />
+                      </label>
+                      <label className="field field--full">
+                        <span>주요 결과</span>
+                        <input defaultValue={stringifyCsv(item.outcomes)} name="outcomes" type="text" />
+                      </label>
+                      <label className="field field--full">
+                        <span>기술 스택</span>
+                        <input
+                          defaultValue={stringifyCsv(item.technologies)}
+                          name="technologies"
+                          type="text"
+                        />
+                      </label>
+                      <label className="field field--full">
+                        <span>설명</span>
+                        <textarea defaultValue={item.description ?? ""} name="description" rows={4} />
+                      </label>
+                    </div>
+                    <div className="form-actions">
+                      <button className="button" type="submit">
+                        프로젝트 저장
+                      </button>
+                    </div>
+                  </form>
+                  <form action={deleteCareerProjectAction} className="inline-form">
+                    <input name="id" type="hidden" value={item.id} />
+                    <button className="button button--ghost" type="submit">
+                      삭제
+                    </button>
+                  </form>
+                </article>
+              ))}
+            </div>
+          </article>
+        </div>
+
         <article className="module-card">
           <h3>새 문서 자산 추가</h3>
           <form action={createCareerDocumentAction} className="stack-form">
@@ -83,25 +355,8 @@ export default async function CareerAssetsPage() {
             </div>
           </form>
         </article>
+
         <div className="module-grid">
-          <article className="module-card">
-            <h3>경력</h3>
-            <ul>
-              {snapshot.experiences.map((item) => (
-                <li key={item.id}>
-                  {item.company} / {item.role}
-                </li>
-              ))}
-            </ul>
-          </article>
-          <article className="module-card">
-            <h3>프로젝트</h3>
-            <ul>
-              {snapshot.projects.map((item) => (
-                <li key={item.id}>{item.name}</li>
-              ))}
-            </ul>
-          </article>
           <article className="module-card">
             <h3>문서</h3>
             <div className="stack-form">
@@ -176,6 +431,7 @@ export default async function CareerAssetsPage() {
               ))}
             </div>
           </article>
+
           <article className="module-card">
             <h3>외부 계정</h3>
             <ul>
@@ -187,6 +443,7 @@ export default async function CareerAssetsPage() {
             </ul>
           </article>
         </div>
+
         <article className="module-card">
           <h3>스킬 근거</h3>
           <div className="pill-row">

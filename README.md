@@ -42,8 +42,8 @@ npm run dev:web
 - `/application-assistant`
 
 현재는 `memory`와 `postgres` 드라이버를 모두 지원한다. 기본값은 인메모리 저장소이며,
-PostgreSQL 드라이버에서는 탐색 프로필, 수동 공고 입력, 자산 문서 메타데이터, 지원 준비,
-수동 분석 실행까지 연결된 상태다.
+PostgreSQL 드라이버에서는 탐색 프로필, 수동 공고 입력, 커리어 프로필/경력/프로젝트,
+자산 문서 메타데이터, 지원 준비, 수동 분석 실행까지 연결된 상태다.
 
 ## 데이터 드라이버
 
@@ -55,8 +55,8 @@ CAREEROS_DATA_DRIVER=memory npm run dev:web
 ```
 
 `postgres` 드라이버는 기본 싱글유저 컨텍스트 생성, 대시보드/조회 path, `search profile`,
-`job posting`, `career document`, `application preparation`의 writable path와 수동 분석 실행까지
-연결된 상태다.
+`job posting`, `career profile`, `career experience`, `career project`, `career document`,
+`application preparation`의 writable path와 수동 분석 실행까지 연결된 상태다.
 
 ## PostgreSQL 실행
 

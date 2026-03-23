@@ -21,8 +21,12 @@ import {
 } from "@careeros/db";
 import type {
   ApplicationPreparation,
+  CareerDocument,
   CareerDocumentSource,
   CareerDocumentType,
+  CareerExperience,
+  CareerProfile,
+  CareerProject,
   JobPostingStructuredContent,
   JsonObject
 } from "@careeros/domain";
@@ -33,7 +37,9 @@ import type {
   CareerAssetSnapshot,
   CareerOSRepository,
   CreateApplicationPreparationInput,
+  CreateCareerExperienceInput,
   CreateCareerDocumentInput,
+  CreateCareerProjectInput,
   CreateJobPostingInput,
   CreateSearchProfileInput,
   JobPostingDetailRecord,
@@ -41,9 +47,12 @@ import type {
   RepositorySnapshot,
   RunJobPostingAnalysisInput,
   SearchProfileRecord,
+  UpdateCareerExperienceInput,
   UpdateCareerDocumentInput,
+  UpdateCareerProfileInput,
   UpdateApplicationPreparationInput,
   UpdateJobPostingInput,
+  UpdateCareerProjectInput,
   UpdateSearchProfileInput
 } from "../types";
 import { DEFAULT_SINGLE_USER } from "./defaults";
@@ -112,6 +121,12 @@ function normalizeOptionalId(value?: string | null) {
 function normalizeStrategyNote(value?: string) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
+}
+
+function assertCareerExperienceDateRange(startDate: string, endDate?: string) {
+  if (endDate && new Date(endDate).getTime() < new Date(startDate).getTime()) {
+    throw new Error("career experience endDate must not be earlier than startDate");
+  }
 }
 
 function sortVersions<T extends { capturedAt: string; createdAt: string }>(versions: T[]) {
@@ -225,7 +240,7 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
     };
   }
 
-  private mapCareerDocument(row: typeof careerDocuments.$inferSelect) {
+  private mapCareerDocument(row: typeof careerDocuments.$inferSelect): CareerDocument {
     return {
       id: row.id,
       userId: row.userId,
@@ -236,6 +251,48 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
       parsedText: row.parsedText ?? undefined,
       structured: asRecord<JsonObject>(row.structuredJson),
       version: row.version,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString()
+    };
+  }
+
+  private mapCareerProfile(row: typeof careerProfiles.$inferSelect): CareerProfile {
+    return {
+      id: row.id,
+      userId: row.userId,
+      headline: row.headline ?? undefined,
+      bio: row.bio ?? undefined,
+      yearsExperience: row.yearsExperience ?? undefined,
+      targetRoles: asArray<string>(row.targetRolesJson),
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString()
+    };
+  }
+
+  private mapCareerExperience(row: typeof careerExperiences.$inferSelect): CareerExperience {
+    return {
+      id: row.id,
+      careerProfileId: row.careerProfileId,
+      company: row.company,
+      role: row.role,
+      startDate: row.startDate.toISOString(),
+      endDate: row.endDate?.toISOString(),
+      description: row.description ?? undefined,
+      achievements: asArray<string>(row.achievementsJson),
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString()
+    };
+  }
+
+  private mapCareerProject(row: typeof careerProjects.$inferSelect): CareerProject {
+    return {
+      id: row.id,
+      careerProfileId: row.careerProfileId,
+      name: row.name,
+      role: row.role ?? undefined,
+      description: row.description ?? undefined,
+      outcomes: asArray<string>(row.outcomesJson),
+      technologies: asArray<string>(row.technologiesJson),
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString()
     };
@@ -667,11 +724,13 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
         this.db
           .select()
           .from(careerExperiences)
-          .where(eq(careerExperiences.careerProfileId, profile.id)),
+          .where(eq(careerExperiences.careerProfileId, profile.id))
+          .orderBy(desc(careerExperiences.startDate), desc(careerExperiences.createdAt)),
         this.db
           .select()
           .from(careerProjects)
-          .where(eq(careerProjects.careerProfileId, profile.id)),
+          .where(eq(careerProjects.careerProfileId, profile.id))
+          .orderBy(desc(careerProjects.updatedAt), desc(careerProjects.createdAt)),
         this.db.select().from(careerDocuments).where(eq(careerDocuments.userId, user.id)),
         this.db.select().from(userSkills).where(eq(userSkills.userId, user.id)),
         this.db.select().from(skills),
@@ -688,39 +747,9 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
         createdAt: user.createdAt.toISOString(),
         updatedAt: user.updatedAt.toISOString()
       },
-      profile: {
-        id: profile.id,
-        userId: profile.userId,
-        headline: profile.headline ?? undefined,
-        bio: profile.bio ?? undefined,
-        yearsExperience: profile.yearsExperience ?? undefined,
-        targetRoles: asArray<string>(profile.targetRolesJson),
-        createdAt: profile.createdAt.toISOString(),
-        updatedAt: profile.updatedAt.toISOString()
-      },
-      experiences: experienceRows.map((row) => ({
-        id: row.id,
-        careerProfileId: row.careerProfileId,
-        company: row.company,
-        role: row.role,
-        startDate: row.startDate.toISOString(),
-        endDate: row.endDate?.toISOString(),
-        description: row.description ?? undefined,
-        achievements: asArray<string>(row.achievementsJson),
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString()
-      })),
-      projects: projectRows.map((row) => ({
-        id: row.id,
-        careerProfileId: row.careerProfileId,
-        name: row.name,
-        role: row.role ?? undefined,
-        description: row.description ?? undefined,
-        outcomes: asArray<string>(row.outcomesJson),
-        technologies: asArray<string>(row.technologiesJson),
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: row.updatedAt.toISOString()
-      })),
+      profile: this.mapCareerProfile(profile),
+      experiences: experienceRows.map((row) => this.mapCareerExperience(row)),
+      projects: projectRows.map((row) => this.mapCareerProject(row)),
       documents: documentRows.map((row) => this.mapCareerDocument(row)),
       skills: userSkillRows.map((row) => {
         const skillRow = skillRows.find((candidate) => candidate.id === row.skillId);
@@ -755,6 +784,127 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
         updatedAt: row.updatedAt.toISOString()
       }))
     };
+  }
+
+  async updateCareerProfile(input: UpdateCareerProfileInput) {
+    const { profile } = await this.ensureUserContext();
+    const [row] = await this.db
+      .update(careerProfiles)
+      .set({
+        headline: input.headline,
+        bio: input.bio,
+        yearsExperience: input.yearsExperience,
+        targetRolesJson: input.targetRoles ?? [],
+        updatedAt: new Date()
+      })
+      .where(eq(careerProfiles.id, profile.id))
+      .returning();
+
+    return this.mapCareerProfile(row);
+  }
+
+  async createCareerExperience(input: CreateCareerExperienceInput) {
+    assertCareerExperienceDateRange(input.startDate, input.endDate);
+    const { profile } = await this.ensureUserContext();
+    const [row] = await this.db
+      .insert(careerExperiences)
+      .values({
+        careerProfileId: profile.id,
+        company: input.company,
+        role: input.role,
+        startDate: new Date(input.startDate),
+        endDate: input.endDate ? new Date(input.endDate) : null,
+        description: input.description,
+        achievementsJson: input.achievements ?? []
+      })
+      .returning();
+
+    return this.mapCareerExperience(row);
+  }
+
+  async updateCareerExperience(input: UpdateCareerExperienceInput) {
+    assertCareerExperienceDateRange(input.startDate, input.endDate);
+    const { profile } = await this.ensureUserContext();
+    const [row] = await this.db
+      .update(careerExperiences)
+      .set({
+        company: input.company,
+        role: input.role,
+        startDate: new Date(input.startDate),
+        endDate: input.endDate ? new Date(input.endDate) : null,
+        description: input.description,
+        achievementsJson: input.achievements ?? [],
+        updatedAt: new Date()
+      })
+      .where(
+        and(
+          eq(careerExperiences.id, input.id),
+          eq(careerExperiences.careerProfileId, profile.id)
+        )
+      )
+      .returning();
+
+    return row ? this.mapCareerExperience(row) : null;
+  }
+
+  async deleteCareerExperience(experienceId: string) {
+    const { profile } = await this.ensureUserContext();
+    const rows = await this.db
+      .delete(careerExperiences)
+      .where(
+        and(
+          eq(careerExperiences.id, experienceId),
+          eq(careerExperiences.careerProfileId, profile.id)
+        )
+      )
+      .returning({ id: careerExperiences.id });
+
+    return rows.length > 0;
+  }
+
+  async createCareerProject(input: CreateCareerProjectInput) {
+    const { profile } = await this.ensureUserContext();
+    const [row] = await this.db
+      .insert(careerProjects)
+      .values({
+        careerProfileId: profile.id,
+        name: input.name,
+        role: input.role,
+        description: input.description,
+        outcomesJson: input.outcomes ?? [],
+        technologiesJson: input.technologies ?? []
+      })
+      .returning();
+
+    return this.mapCareerProject(row);
+  }
+
+  async updateCareerProject(input: UpdateCareerProjectInput) {
+    const { profile } = await this.ensureUserContext();
+    const [row] = await this.db
+      .update(careerProjects)
+      .set({
+        name: input.name,
+        role: input.role,
+        description: input.description,
+        outcomesJson: input.outcomes ?? [],
+        technologiesJson: input.technologies ?? [],
+        updatedAt: new Date()
+      })
+      .where(and(eq(careerProjects.id, input.id), eq(careerProjects.careerProfileId, profile.id)))
+      .returning();
+
+    return row ? this.mapCareerProject(row) : null;
+  }
+
+  async deleteCareerProject(projectId: string) {
+    const { profile } = await this.ensureUserContext();
+    const rows = await this.db
+      .delete(careerProjects)
+      .where(and(eq(careerProjects.id, projectId), eq(careerProjects.careerProfileId, profile.id)))
+      .returning({ id: careerProjects.id });
+
+    return rows.length > 0;
   }
 
   async listCareerDocuments() {

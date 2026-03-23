@@ -90,6 +90,38 @@ export type CreateCareerDocumentInput = {
   structured?: Record<string, unknown>;
 };
 
+export type UpdateCareerProfileInput = {
+  headline?: string;
+  bio?: string;
+  yearsExperience?: number;
+  targetRoles?: string[];
+};
+
+export type CreateCareerExperienceInput = {
+  company: string;
+  role: string;
+  startDate: string;
+  endDate?: string;
+  description?: string;
+  achievements?: string[];
+};
+
+export type UpdateCareerExperienceInput = CreateCareerExperienceInput & {
+  id: string;
+};
+
+export type CreateCareerProjectInput = {
+  name: string;
+  role?: string;
+  description?: string;
+  outcomes?: string[];
+  technologies?: string[];
+};
+
+export type UpdateCareerProjectInput = CreateCareerProjectInput & {
+  id: string;
+};
+
 export type UpdateCareerDocumentInput = {
   id: string;
   docType: CareerDocumentType;
@@ -172,6 +204,13 @@ export interface CareerOSRepository {
   updateJobPosting(input: UpdateJobPostingInput): Promise<JobPostingDetailRecord | null>;
   getJobPostingDetail(jobPostingId: string): Promise<JobPostingDetailRecord | null>;
   getCareerAssetSnapshot(): Promise<CareerAssetSnapshot>;
+  updateCareerProfile(input: UpdateCareerProfileInput): Promise<CareerProfile>;
+  createCareerExperience(input: CreateCareerExperienceInput): Promise<CareerExperience>;
+  updateCareerExperience(input: UpdateCareerExperienceInput): Promise<CareerExperience | null>;
+  deleteCareerExperience(experienceId: string): Promise<boolean>;
+  createCareerProject(input: CreateCareerProjectInput): Promise<CareerProject>;
+  updateCareerProject(input: UpdateCareerProjectInput): Promise<CareerProject | null>;
+  deleteCareerProject(projectId: string): Promise<boolean>;
   listCareerDocuments(): Promise<CareerDocument[]>;
   createCareerDocument(input: CreateCareerDocumentInput): Promise<CareerDocument>;
   updateCareerDocument(input: UpdateCareerDocumentInput): Promise<CareerDocument | null>;
