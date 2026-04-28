@@ -515,3 +515,7 @@ export function cloneMockDatabase(): MockDatabase {
   return structuredClone(getMockDatabase());
 }
 
+export function resetMockDatabase() {
+  globalThis.__careerosMockDatabase = createMockDatabase();
+  return globalThis.__careerosMockDatabase;
+}
