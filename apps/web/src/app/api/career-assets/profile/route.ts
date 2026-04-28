@@ -1,43 +1,27 @@
 import { NextResponse } from "next/server";
 import { updateCareerProfile } from "../../../../server/services/career-assets";
-
-function normalizeOptionalText(value: unknown) {
-  const normalized = String(value ?? "").trim();
-  return normalized || undefined;
-}
-
-function parseCsv(value: unknown) {
-  return String(value ?? "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function parseOptionalNumber(value: unknown) {
-  const normalized = String(value ?? "").trim();
-
-  if (!normalized) {
-    return undefined;
-  }
-
-  const parsed = Number(normalized);
-  return Number.isNaN(parsed) ? undefined : parsed;
-}
+import {
+  createApiErrorBody,
+  isInputValidationError,
+  parseCareerProfilePatch,
+  toApiErrorBody
+} from "../../../../server/services/career-assets-inputs";
 
 export async function PUT(request: Request) {
-  const body = (await request.json()) as {
-    headline?: string;
-    bio?: string;
-    yearsExperience?: number | string;
-    targetRoles?: string[] | string;
-  };
+  try {
+    return NextResponse.json(await updateCareerProfile(parseCareerProfilePatch(await request.json())));
+  } catch (error) {
+    if (isInputValidationError(error)) {
+      return NextResponse.json(toApiErrorBody(error), { status: error.status });
+    }
 
-  return NextResponse.json(
-    await updateCareerProfile({
-      headline: normalizeOptionalText(body.headline),
-      bio: normalizeOptionalText(body.bio),
-      yearsExperience: parseOptionalNumber(body.yearsExperience),
-      targetRoles: Array.isArray(body.targetRoles) ? body.targetRoles : parseCsv(body.targetRoles)
-    })
-  );
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        createApiErrorBody("profile payload는 object여야 한다.", "invalid_payload"),
+        { status: 400 }
+      );
+    }
+
+    throw error;
+  }
 }

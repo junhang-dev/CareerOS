@@ -9,6 +9,11 @@ import type {
 } from "@careeros/domain";
 import { cloneMockDatabase, getMockDatabase } from "../../data/mock-state";
 import { buildStubAnalysis } from "../analysis-stub";
+import {
+  assertCareerExperienceDates,
+  formatDateOnly,
+  mergeCareerProfileUpdate
+} from "../../services/career-assets-inputs";
 import type {
   ApplicationPreparationRecord,
   CareerAssetSnapshot,
@@ -127,12 +132,6 @@ function normalizeStrategyNote(value?: string) {
   return trimmed ? trimmed : undefined;
 }
 
-function assertCareerExperienceDateRange(startDate: string, endDate?: string) {
-  if (endDate && new Date(endDate).getTime() < new Date(startDate).getTime()) {
-    throw new Error("career experience endDate must not be earlier than startDate");
-  }
-}
-
 function sortCareerExperiences<T extends { startDate: string; createdAt: string }>(experiences: T[]) {
   return [...experiences].sort(
     (left, right) =>
@@ -156,6 +155,16 @@ function mapCareerDocumentRecord(
 ): CareerDocument {
   return {
     ...document
+  };
+}
+
+function mapCareerExperienceRecord(
+  experience: ReturnType<typeof getMockDatabase>["careerExperiences"][number]
+) {
+  return {
+    ...experience,
+    startDate: formatDateOnly(experience.startDate)!,
+    endDate: formatDateOnly(experience.endDate)
   };
 }
 
@@ -392,7 +401,7 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
     return {
       user: db.user,
       profile: db.careerProfile,
-      experiences: sortCareerExperiences(db.careerExperiences),
+      experiences: sortCareerExperiences(db.careerExperiences).map((item) => mapCareerExperienceRecord(item)),
       projects: sortCareerProjects(db.careerProjects),
       documents: db.careerDocuments,
       skills: db.userSkills.map((userSkill) => ({
@@ -405,11 +414,12 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
 
   async updateCareerProfile(input: UpdateCareerProfileInput) {
     const db = getMockDatabase();
+    const merged = mergeCareerProfileUpdate(db.careerProfile, input);
 
-    db.careerProfile.headline = input.headline;
-    db.careerProfile.bio = input.bio;
-    db.careerProfile.yearsExperience = input.yearsExperience;
-    db.careerProfile.targetRoles = input.targetRoles ?? [];
+    db.careerProfile.headline = merged.headline;
+    db.careerProfile.bio = merged.bio;
+    db.careerProfile.yearsExperience = merged.yearsExperience;
+    db.careerProfile.targetRoles = merged.targetRoles;
     db.careerProfile.updatedAt = new Date().toISOString();
 
     return {
@@ -418,7 +428,7 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
   }
 
   async createCareerExperience(input: CreateCareerExperienceInput) {
-    assertCareerExperienceDateRange(input.startDate, input.endDate);
+    assertCareerExperienceDates(input.startDate, input.endDate);
     const db = getMockDatabase();
     const now = new Date().toISOString();
     const experience = {
@@ -435,13 +445,11 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
     };
 
     db.careerExperiences.push(experience);
-    return {
-      ...experience
-    };
+    return mapCareerExperienceRecord(experience);
   }
 
   async updateCareerExperience(input: UpdateCareerExperienceInput) {
-    assertCareerExperienceDateRange(input.startDate, input.endDate);
+    assertCareerExperienceDates(input.startDate, input.endDate);
     const db = getMockDatabase();
     const experience = db.careerExperiences.find((item) => item.id === input.id);
 
@@ -457,9 +465,7 @@ export class InMemoryCareerOSRepository implements CareerOSRepository {
     experience.achievements = input.achievements ?? [];
     experience.updatedAt = new Date().toISOString();
 
-    return {
-      ...experience
-    };
+    return mapCareerExperienceRecord(experience);
   }
 
   async deleteCareerExperience(experienceId: string) {

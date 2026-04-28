@@ -1,50 +1,13 @@
 import { getCareerOSRepository } from "../repositories";
-
-type UpdateCareerProfileInput = {
-  headline?: string;
-  bio?: string;
-  yearsExperience?: number;
-  targetRoles?: string[];
-};
-
-type CreateCareerExperienceInput = {
-  company: string;
-  role: string;
-  startDate: string;
-  endDate?: string;
-  description?: string;
-  achievements?: string[];
-};
-
-type UpdateCareerExperienceInput = CreateCareerExperienceInput & {
-  id: string;
-};
-
-type CreateCareerProjectInput = {
-  name: string;
-  role?: string;
-  description?: string;
-  outcomes?: string[];
-  technologies?: string[];
-};
-
-type UpdateCareerProjectInput = CreateCareerProjectInput & {
-  id: string;
-};
-
-type CreateCareerDocumentInput = {
-  docType: "resume" | "cover_letter" | "portfolio" | "note";
-  title: string;
-  sourceType: "manual" | "upload" | "notion" | "linkedin" | "github";
-  storagePath?: string;
-  parsedText?: string;
-  structured?: Record<string, unknown>;
-};
-
-type UpdateCareerDocumentInput = CreateCareerDocumentInput & {
-  id: string;
-  version?: number;
-};
+import type {
+  CreateCareerDocumentInput,
+  CreateCareerExperienceInput,
+  CreateCareerProjectInput,
+  UpdateCareerDocumentInput,
+  UpdateCareerExperienceInput,
+  UpdateCareerProfileInput,
+  UpdateCareerProjectInput
+} from "../repositories/types";
 
 export async function getCareerAssetSnapshot() {
   return await getCareerOSRepository().getCareerAssetSnapshot();

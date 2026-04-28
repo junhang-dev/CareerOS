@@ -32,6 +32,12 @@ import type {
 } from "@careeros/domain";
 import { and, asc, desc, eq, inArray, ne } from "drizzle-orm";
 import { buildStubAnalysis } from "../analysis-stub";
+import {
+  assertCareerExperienceDates,
+  formatDateOnly,
+  mergeCareerProfileUpdate,
+  toUtcDateOnly
+} from "../../services/career-assets-inputs";
 import type {
   ApplicationPreparationRecord,
   CareerAssetSnapshot,
@@ -121,12 +127,6 @@ function normalizeOptionalId(value?: string | null) {
 function normalizeStrategyNote(value?: string) {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;
-}
-
-function assertCareerExperienceDateRange(startDate: string, endDate?: string) {
-  if (endDate && new Date(endDate).getTime() < new Date(startDate).getTime()) {
-    throw new Error("career experience endDate must not be earlier than startDate");
-  }
 }
 
 function sortVersions<T extends { capturedAt: string; createdAt: string }>(versions: T[]) {
@@ -275,8 +275,8 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
       careerProfileId: row.careerProfileId,
       company: row.company,
       role: row.role,
-      startDate: row.startDate.toISOString(),
-      endDate: row.endDate?.toISOString(),
+      startDate: formatDateOnly(row.startDate)!,
+      endDate: formatDateOnly(row.endDate),
       description: row.description ?? undefined,
       achievements: asArray<string>(row.achievementsJson),
       createdAt: row.createdAt.toISOString(),
@@ -788,13 +788,14 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
 
   async updateCareerProfile(input: UpdateCareerProfileInput) {
     const { profile } = await this.ensureUserContext();
+    const merged = mergeCareerProfileUpdate(this.mapCareerProfile(profile), input);
     const [row] = await this.db
       .update(careerProfiles)
       .set({
-        headline: input.headline,
-        bio: input.bio,
-        yearsExperience: input.yearsExperience,
-        targetRolesJson: input.targetRoles ?? [],
+        headline: merged.headline ?? null,
+        bio: merged.bio ?? null,
+        yearsExperience: merged.yearsExperience ?? null,
+        targetRolesJson: merged.targetRoles,
         updatedAt: new Date()
       })
       .where(eq(careerProfiles.id, profile.id))
@@ -804,7 +805,7 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
   }
 
   async createCareerExperience(input: CreateCareerExperienceInput) {
-    assertCareerExperienceDateRange(input.startDate, input.endDate);
+    assertCareerExperienceDates(input.startDate, input.endDate);
     const { profile } = await this.ensureUserContext();
     const [row] = await this.db
       .insert(careerExperiences)
@@ -812,8 +813,8 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
         careerProfileId: profile.id,
         company: input.company,
         role: input.role,
-        startDate: new Date(input.startDate),
-        endDate: input.endDate ? new Date(input.endDate) : null,
+        startDate: toUtcDateOnly(input.startDate),
+        endDate: input.endDate ? toUtcDateOnly(input.endDate) : null,
         description: input.description,
         achievementsJson: input.achievements ?? []
       })
@@ -823,15 +824,15 @@ export class PostgresCareerOSRepository implements CareerOSRepository {
   }
 
   async updateCareerExperience(input: UpdateCareerExperienceInput) {
-    assertCareerExperienceDateRange(input.startDate, input.endDate);
+    assertCareerExperienceDates(input.startDate, input.endDate);
     const { profile } = await this.ensureUserContext();
     const [row] = await this.db
       .update(careerExperiences)
       .set({
         company: input.company,
         role: input.role,
-        startDate: new Date(input.startDate),
-        endDate: input.endDate ? new Date(input.endDate) : null,
+        startDate: toUtcDateOnly(input.startDate),
+        endDate: input.endDate ? toUtcDateOnly(input.endDate) : null,
         description: input.description,
         achievementsJson: input.achievements ?? [],
         updatedAt: new Date()

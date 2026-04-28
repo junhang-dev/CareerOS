@@ -91,9 +91,9 @@ export type CreateCareerDocumentInput = {
 };
 
 export type UpdateCareerProfileInput = {
-  headline?: string;
-  bio?: string;
-  yearsExperience?: number;
+  headline?: string | null;
+  bio?: string | null;
+  yearsExperience?: number | null;
   targetRoles?: string[];
 };
 

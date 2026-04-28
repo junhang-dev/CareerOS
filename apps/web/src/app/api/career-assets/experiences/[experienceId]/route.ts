@@ -3,6 +3,12 @@ import {
   deleteCareerExperience,
   updateCareerExperience
 } from "../../../../../server/services/career-assets";
+import {
+  createApiErrorBody,
+  isInputValidationError,
+  parseCareerExperienceUpdate,
+  toApiErrorBody
+} from "../../../../../server/services/career-assets-inputs";
 
 type RouteContext = {
   params: Promise<{
@@ -10,64 +16,32 @@ type RouteContext = {
   }>;
 };
 
-function normalizeOptionalText(value: unknown) {
-  const normalized = String(value ?? "").trim();
-  return normalized || undefined;
-}
-
-function parseCsv(value: unknown) {
-  return String(value ?? "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function normalizeDateInput(value: unknown) {
-  const normalized = String(value ?? "").trim();
-  return normalized || undefined;
-}
-
 export async function PUT(request: Request, context: RouteContext) {
   const params = await context.params;
-  const body = (await request.json()) as {
-    company?: string;
-    role?: string;
-    startDate?: string;
-    endDate?: string;
-    description?: string;
-    achievements?: string[] | string;
-  };
-
-  if (!body.company || !body.role || !body.startDate) {
-    return NextResponse.json(
-      {
-        error: "company, role, startDate가 필요하다."
-      },
-      {
-        status: 400
-      }
-    );
-  }
 
   try {
-    const updated = await updateCareerExperience({
-      id: params.experienceId,
-      company: body.company.trim(),
-      role: body.role.trim(),
-      startDate: body.startDate.trim(),
-      endDate: normalizeDateInput(body.endDate),
-      description: normalizeOptionalText(body.description),
-      achievements: Array.isArray(body.achievements) ? body.achievements : parseCsv(body.achievements)
-    });
+    const updated = await updateCareerExperience(
+      parseCareerExperienceUpdate(params.experienceId, await request.json())
+    );
 
     if (!updated) {
-      return NextResponse.json({ error: "career experience not found" }, { status: 404 });
+      return NextResponse.json(
+        createApiErrorBody("career experience not found", "career_experience_not_found"),
+        { status: 404 }
+      );
     }
 
     return NextResponse.json(updated);
   } catch (error) {
-    if (error instanceof Error && error.message.includes("endDate")) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (isInputValidationError(error)) {
+      return NextResponse.json(toApiErrorBody(error), { status: error.status });
+    }
+
+    if (error instanceof SyntaxError) {
+      return NextResponse.json(
+        createApiErrorBody("career experience payload는 object여야 한다.", "invalid_payload"),
+        { status: 400 }
+      );
     }
 
     throw error;
@@ -79,7 +53,10 @@ export async function DELETE(_: Request, context: RouteContext) {
   const deleted = await deleteCareerExperience(params.experienceId);
 
   if (!deleted) {
-    return NextResponse.json({ error: "career experience not found" }, { status: 404 });
+    return NextResponse.json(
+      createApiErrorBody("career experience not found", "career_experience_not_found"),
+      { status: 404 }
+    );
   }
 
   return new Response(null, { status: 204 });
