@@ -287,6 +287,12 @@ pre {
   font: inherit;
 }
 
+.preview-textarea {
+  min-height: 160px;
+  resize: vertical;
+  line-height: 1.65;
+}
+
 .form-actions,
 .inline-form {
   display: flex;
